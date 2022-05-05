@@ -1,5 +1,5 @@
 ---
-title: "About this blog"
+title: "About my blog"
 description: |
   Finance applications with R
 ---
