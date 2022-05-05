@@ -1,0 +1,15 @@
+name: "blog"
+title: "Finance Blog"
+output_dir: "docs"
+navbar:
+  right:
+    - text: "Home"
+      href: index.html
+    - text: "About"
+      href: about.html
+output: distill::distill_article
+collections:
+  posts:
+    categories: true
+    categories_metadata: true
+    authors_metadata: false

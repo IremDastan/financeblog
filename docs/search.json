@@ -1,0 +1,20 @@
+{
+  "articles": [
+    {
+      "path": "about.html",
+      "title": "About this blog",
+      "description": "Finance applications with R",
+      "author": [],
+      "contents": "\r\n\r\n\r\n\r\n",
+      "last_modified": "2022-05-05T15:15:04+03:00"
+    },
+    {
+      "path": "index.html",
+      "title": "",
+      "author": [],
+      "contents": "\r\n\r\n\r\n\r\n",
+      "last_modified": "2022-05-05T15:18:44+03:00"
+    }
+  ],
+  "collections": ["posts/posts.json"]
+}
