@@ -1,0 +1,551 @@
+---
+title: "Investigating High-Frequency Trading (HFT) Around the Extreme Price Movements in Borsa Istanbul"
+description: |
+  In this study, I analyzed the existence of high-frequency trading (HFT) in Borsa Istanbul. My focus is it's the behavior and market share of high-frequency trading during extreme price movements (EPM).
+author:
+  - name: Irem Dastan
+date: 2022-05-08
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Finance
+  - Market Microstructure
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(ggalt)
+library(lubridate)
+library(stargazer)
+library(fastDummies)
+
+data <- read.csv("data.csv") #You can access the data on Github.
+names(data)[1] <- "stock" 
+```
+
+In this study, I analyzed the existence of high-frequency trading (HFT) in Borsa Istanbul. My focus is it's the behavior and market share of high-frequency trading during extreme price movements (EPM).
+
+Fully automated exchanges have increased the number of transactions in the market and enabled intermediaries to expand their use of technology. Trading behind software based on the ability to process and react quickly to the trading flow of data, to the flow of market information has made it possible to carry out a large number of trading in a short time. However, there are still problems with speed in financial markets, using data to invest or to enter trades quickly. For this reason, there is a speed race in which the fastest actors compete with each other in financial markets. Thus, the markets are now dominated by computer algorithms, not by buying and selling tradings made by humans.
+
+HFT; It is a type of trading that can be defined with thousands of order submissions, high order cancellations and intraday marginal profit target, keeping positions in seconds or milliseconds in fractions of a second. Briefly; “HFT leverages the technological capability of sending large numbers of orders at low millisecond delays” (Ersan and Ekinci, 2016).
+
+As HFT algorithms compete with each other, they face two challenges:
+
+* They receive large amounts of data every microsecond.
+
+* They must be able to act very quickly on the observed data, because the profitability of the signals they observe decreases very quickly.
+
+The dominant role played by HFT firms in providing liquidity and price arbitrage in the market directly affects the market share of trading areas. Its participation in arbitrages is obtained from the price differences of the shares traded in more than one market, by making profit from small price differences with short-term trading and high volumes.
+
+BISTECH platform, which was put into use in the Equity Market on November 30, 2015, allowed the inclusion of HFT. HFT share in Borsa Istanbul is not as developed as the USA and European countries.
+
+The difference between HFT and AT (Algorithmic Trading); AT is more comprehensive and HFT is a subset of AT. AT is a structure that provides trading with conditions defined in the computer environment, while HFT evaluates the opportunities that occur in very small seconds. In short, HFT is a variant of AT.
+
+```{r echo=FALSE}
+knitr::include_graphics("1.png")
+```
+
+*Stocks listed in BIST30 index.*
+
+```{r echo=FALSE}
+knitr::include_graphics("2.png")
+```
+
+*16-month period from December 2015 to March 2017, 339 trading days.*
+
+```{r echo=FALSE}
+knitr::include_graphics("3.png")
+```
+
+*Obtaining the daily versions of the variables obtained from the intraday order-trading books from the study of Ekinci and Ersan (2020).*
+
+Variables in the study; HFT total, HFT trading sides, HFT trading difference (HFT imbalance). Control variables; trading volume, liquidity and volatility. The dummy variables, which are the main independent variables, are; extreme positive price movements (shares and days with returns of 2% and more than 5%), and extreme negative price movements (stocks and days with returns below -2% and -5%).
+
+**I analyze in three stages.**
+
+*Based on stock and return range*
+
+*T-test*
+
+*Regression analysis*
+
+**Calculating the HFT**
+
+First of all, some orders are marked as HFT orders in the data. We do this in two stages.
+
+*First*, orders with at least two messages (order submission, change, cancellation) in 1 second or less.
+
+*Latter*, we determine it as any message of the HFT orders determined in the 1st stage, as other orders of the same stock that come in the same second and in the same size.
+
+$HFT\ ratio_{i,t}=\frac{Electronic\ message_{i,t}^{HFT}}{Electronic\ message_{all^{HFT}}}$
+
+$Liquidity_{i,t}= \sum_{j=1}^{N} Volume_{i,j,t}*(\frac{Duration_{i,j,t}}{Duration_{total}})$
+
+## Analyzes
+
+### Statistics of Variables in Daily Return Ranges
+
+```{r}
+table1 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > -0.05 & return <= -0.02 ~ "between -5% and -2%",
+      return > -0.02 & return <= 0.02 ~ "between -2% and 2%",
+      return > 0.02 & return <= 0.05 ~ "between 2% and 5%",
+      return > 0.05 ~ "above 5%"
+    )
+  ) %>% 
+  group_by(return_type) %>% 
+  summarise(
+    avg_volatility = mean(volatility),
+    sd_volatility = sd(volatility),
+    avg_liquidity = mean(liquidity),
+    sd_liquidity = sd(liquidity),
+    avg_hft_buy = mean(hft_buy),
+    sd_hft_buy = sd(hft_buy),
+    avg_hft_sell = mean(hft_sell),
+    sd_hft_sell = sd(hft_sell),
+    avg_hft = mean(hft),
+    sd_hft = sd(hft),
+    avg_return = mean(return),
+    sd_return = sd(return),
+    avg_bist30_return = mean(bist30_return),
+    sd_bist30_return = sd(bist30_return),
+    avg_extra_ret_market = mean(extra_ret_market),
+    sd_extra_ret_market = sd(extra_ret_market),
+    avg_volume = mean(volume),
+    sd_volume = sd(volume)
+  ) %>% 
+  mutate(
+    return_type = factor(
+      return_type, levels = c("below -5%",
+                              "between -5% and -2%",
+                              "between -2% and 2%",
+                              "between 2% and 5%",
+                              "above 5%")
+    )
+  ) %>% 
+  arrange(return_type) %>% 
+  mutate_at(vars(-c(return_type, avg_liquidity, sd_liquidity, avg_volume, sd_volume)),
+            .funs = function(x) round(x, digits = 4)) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  `colnames<-`(.[1,]) %>% 
+  slice(-1)
+
+kable(table1) %>% 
+  kable_paper("hover", full_width = F)
+
+```
+
+*Considering the liquidity, the average and standard deviation below -5% belong to non-return stocks and days. The average market volume was experienced most intensely on non-return days.*
+
+### Number of Days Above 2% and Below -2% of Returns on a Stock Basis
+
+```{r fig.width=12, fig.height=10}
+graph1_1 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = "return_type", values_from = "number_of_days")
+
+graph1_2 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit()
+
+ggplot(graph1_1, aes(y = stock)) + 
+  geom_point(data = graph1_2,
+             aes(x = number_of_days, color = return_type), size = 3) +
+  scale_color_manual(values = c("orange","#76a5af")) +
+  geom_dumbbell(aes(x = `below -2%`, xend = `above 2%`),
+                size_x = 5, 
+                size_xend = 5,
+                colour_x = "#76a5af",
+                colour_xend = "orange") +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text = element_text(size = 12, face = "bold")) +
+  guides(color = guide_legend(reverse=T)) +
+  labs(title = "The Number of Days of Returns")
+```
+
+
+*The stock with the highest number of days with a return of more than 5% is KOZAL, and the stocks with the least number of days; ENKAI, KCHOL, PETKM, SAHOL, TTKOM and TUPRS.*
+
+### Number of Days Above 5% and Under -5% of Returns on a Stock Basis
+
+```{r fig.width=12, fig.height=10}
+graph2_1 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = "return_type", values_from = "number_of_days")
+
+graph2_2 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit()
+
+ggplot(graph2_1, aes(y = stock)) + 
+  geom_point(data = graph2_2,
+             aes(x = number_of_days, color = return_type), size = 3) +
+  scale_color_manual(values = c("#80dead","#f1cbff")) +
+  geom_dumbbell(aes(x = `below -5%`, xend = `above 5%`),
+                size_x = 5, 
+                size_xend = 5,
+                colour_x = "#f1cbff",
+                colour_xend = "#80dead") +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text = element_text(size = 12, face = "bold")) +
+  guides(color = guide_legend(reverse=T)) +
+  labs(title = "The Number of Days of Returns")
+```
+
+*Here, we determined the HFTs within the return limits we chose throughout our data and averaged them on a share basis. The stock with the highest return under -5% HFT average is TTKOM.*
+
+### Monthly Average HFT Rate and Extreme Price Moving Days and Number of Stocks
+
+```{r preview=TRUE}
+graph3 <- data %>%
+  select(day, return, hft) %>% 
+  mutate(day = dmy(day), 
+         month = month(day),
+         year = year(day),
+         return_type=case_when(
+           return < -0.02 ~ "below -2%",
+           return > 0.02 ~ "above 2%"
+    )) %>% 
+  na.omit() %>% 
+  group_by(month, year) %>% 
+  summarise("Extreme Price Movements" = n(),
+            "High Frequency Trading" = mean(hft)) %>% 
+  mutate(day = as.Date(paste0(year, "-", month, "-", 1))) %>% 
+  arrange(day) %>% 
+  ungroup() %>% 
+  select(day, `Extreme Price Movements`, `High Frequency Trading`) %>% 
+  pivot_longer(!day, names_to = "types", values_to = "value")
+
+ggplot(graph3, aes(x = day, y = value, group = types, color = types)) +
+  geom_line() +
+  theme_minimal() + 
+  theme(axis.title = element_blank(), 
+        legend.position = "none") +
+  facet_wrap(~types, scales = "free_y", ncol = 1)
+
+```
+
+*In the graph, we see the relationship of EPM with values on the left and HFT with ratios on the right. Our tipping rate in EPM is minus and plus 2%. The EPM values are the sum of the days within these two extreme prices in the return. HFT rates are obtained by dividing the sum of HFTs on a monthly basis by the number of days in that month. It is seen that the number of EPM days is decreasing and the HFT ratio is increasing. The period with the least extreme price movement; October 2016, the highest is December 2015. The HFT rate reached its highest level in March 2017.*
+
+### HFT Activity in Daily Return Ranges
+
+```{r}
+table2 <- data %>% 
+  select(hft, hft_buy, hft_sell, return) %>% 
+  mutate(hft_buy_sell_diff = hft_buy - hft_sell,
+         hft_inequilibrium = (hft_buy - hft_sell)/hft, 
+         return_type=case_when(
+           return <= -0.05 ~ "below -5%",
+           return > -0.05 & return <= -0.02 ~ "between -5% and -2%",
+           return > -0.02 & return <= -0.005 ~ "between -2% and -0.5%",
+           return > -0.005 & return <= 0.005 ~ "between -0.5% and 0.5%",
+           return > 0.005 & return <= 0.02 ~ "between 0.5% and 2%",
+           return > 0.02 & return <= 0.05 ~ "between 2% and 5%",
+           return > 0.05 ~ "above 5%"
+    )) %>% 
+  group_by(return_type) %>% 
+  summarise(
+    avg_hft = mean(hft),
+    avg_hft_buy = mean(hft_buy),
+    avg_hft_sell = mean(hft_sell),
+    avg_hft_buy_sell_diff = mean(hft_buy_sell_diff),
+    avg_hft_inequilibrium = mean(hft_inequilibrium, na.rm = T)
+  ) %>% 
+  mutate(
+    return_type = factor(
+      return_type, levels = c("below -5%",
+                              "between -5% and -2%",
+                              "between -2% and -0.5%",
+                              "between -0.5% and 0.5%",
+                              "between 0.5% and 2%",
+                              "between 2% and 5%",
+                              "above 5%")
+    )
+  ) %>% 
+  arrange(return_type) %>% 
+  mutate_at(vars(-c(return_type)), .funs = function(x) round(x, digits = 4)) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  `colnames<-`(.[1,]) %>% 
+  slice(-1)
+
+kable(table2) %>% 
+  kable_paper("hover", full_width = F)
+```
+
+*In the table, there are the averages of the HFT variables of the days that fall into different return ranges. When approaching from minus 5% to zero, the HFT and HFT purchase values decrease and grow after zero. In the averages of the HFT buying and selling difference, while it approaches zero, it shrinks and in the case of positive EPMs, the averages increase. In the average of the ratio of the HFT difference to the HFT, this average value grows as the stocks and days with an EPM below -5% get closer to the stocks and days with a positive EPM.*
+
+### HFT Activity on Extreme Price Moving Days and Stocks
+
+```{r}
+table3 <- data %>% 
+   select(hft, hft_buy, hft_sell, return) %>% 
+  mutate(hft_buy_sell_diff = hft_buy - hft_sell,
+         hft_inequilibrium = (hft_buy - hft_sell)/hft, 
+         return_type=case_when(
+           return <= -0.05 ~ "below -5%",
+           return > -0.05 & return <= -0.02 ~ "between -5% and -2%",
+           return > -0.02 & return <= -0.005 ~ "between -2% and -0.5%",
+           return > -0.005 & return <= 0.005 ~ "between -0.5% and 0.5%",
+           return > 0.005 & return <= 0.02 ~ "between 0.5% and 2%",
+           return > 0.02 & return <= 0.05 ~ "between 2% and 5%",
+           return > 0.05 ~ "above 5%"
+    )) %>% 
+  group_by(return_type) %>% 
+  summarise(
+    avg_hft = mean(hft),
+    avg_hft_buy = mean(hft_buy),
+    avg_hft_sell = mean(hft_sell),
+    avg_hft_buy_sell_diff = mean(hft_buy_sell_diff),
+    avg_hft_inequilibrium = mean(hft_inequilibrium, na.rm = T),
+    p_hft = t.test(hft)$p.value,
+    p_hft_buy = t.test(hft_buy)$p.value,
+    p_hft_sell = t.test(hft_sell)$p.value,
+    p_hft_buy_sell_diff = t.test(hft_buy_sell_diff)$p.value,
+    p_hft_inequilibrium = t.test(hft_inequilibrium)$p.value
+  ) %>% 
+  mutate(
+    return_type = factor(
+      return_type, levels = c("below -5%",
+                              "between -5% and -2%",
+                              "between -2% and -0.5%",
+                              "between -0.5% and 0.5%",
+                              "between 0.5% and 2%",
+                              "between 2% and 5%",
+                              "above 5%")
+    )
+  ) %>% 
+  arrange(return_type) %>% 
+  select(return_type, avg_hft, p_hft, avg_hft_buy, p_hft_buy, avg_hft_sell,
+         p_hft_sell, avg_hft_buy_sell_diff, p_hft_buy_sell_diff, avg_hft_inequilibrium, p_hft_inequilibrium) %>% 
+  mutate_at(vars(-c(return_type)), .funs = function(x) round(x, digits = 4)) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  `colnames<-`(.[1,]) %>% 
+  slice(-1) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  mutate_all(.funs = function(x) x - .[,4])
+  
+kable(table3) %>% 
+  kable_paper("hover", full_width = F)
+```
+
+*The table shows that HFT activity reduces taking a buy position during negative-end price movements, while it reduces selling-positioning during positive-end price movements.*
+
+*It was 0 (zero) because the p values were too small.*
+
+## Extreme price movements and HFT relationship – Regression models
+
+$HFT_{i,t}= EPM_{i,t}^{+0.05} + EPM_{i,t}^{-0.05} + \epsilon_{i,t}$
+
+$HFT_{i,t}= EPM_{i,t}^{+0.02} + EPM_{i,t}^{-0.02} + \epsilon_{i,t}$
+
+$HFT_{i,t}= EPM_{i,t}^{+0.05} + EPM_{i,t}^{-0.05} + Volume_{i,t} + Liquidity_{i,t} + Volatility_{i,t} + \epsilon_{i,t}$
+
+$HFT_{i,t}= EPM_{i,t}^{+0.02} + EPM_{i,t}^{-0.02} + Volume_{i,t} + Liquidity_{i,t} + Volatility_{i,t} + \epsilon_{i,t}$
+
+### Total HFT Ratio Determinants
+
+```{r}
+data_all_1 <- data %>% 
+  select(hft, return) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft = (hft - mean(hft)) / sd(hft)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_all_1 <- lm(hft ~ `return_type_above 5%` + `return_type_below -5%`, data = data_all_1)
+stargazer(model_all_1, type = "text")
+
+model_all_2 <- lm(hft ~ `return_type_above 2%` + `return_type_below -2%`, data = data_all_1)
+stargazer(model_all_2, type = "text")
+
+data_all_2 <- data %>% 
+  select(hft, return, volume, liquidity, volatility) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft = (hft - mean(hft)) / sd(hft),
+         volume = (volume - mean(volume)) / sd(volume),
+         liquidity =(liquidity - mean(liquidity)) / sd(liquidity)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_all_3 <- lm(hft ~ `return_type_above 5%` + `return_type_below -5%` +
+                    volume + liquidity + volatility, data = data_all_2)
+stargazer(model_all_3, type = "text") 
+
+model_all_4 <- lm(hft ~ `return_type_above 2%` + `return_type_below -2%` + 
+                    volume + liquidity + volatility, data = data_all_2)
+stargazer(model_all_4, type = "text")
+
+```
+
+### Buy-side HFT Ratio Determinants
+
+```{r}
+data_buy_1 <- data %>% 
+  select(hft_buy, return) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_buy = (hft_buy - mean(hft_buy)) / sd(hft_buy)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_buy_1 <- lm(hft_buy ~ `return_type_above 5%` + `return_type_below -5%`, data = data_buy_1)
+stargazer(model_buy_1, type = "text")
+
+model_buy_2 <- lm(hft_buy ~ `return_type_above 2%` + `return_type_below -2%`, data = data_buy_1)
+stargazer(model_buy_2, type = "text")
+
+data_buy_2 <- data %>% 
+  select(hft_buy, return, volume, liquidity, volatility) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_buy = (hft_buy - mean(hft_buy)) / sd(hft_buy),
+         volume = (volume - mean(volume)) / sd(volume),
+         liquidity =(liquidity - mean(liquidity)) / sd(liquidity)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_buy_3 <- lm(hft_buy ~ `return_type_above 5%` + `return_type_below -5%` 
+                  + volume + liquidity + volatility, data = data_buy_2)
+stargazer(model_buy_3, type = "text") 
+
+model_buy_4 <- lm(hft_buy ~ `return_type_above 2%` + `return_type_below -2%` 
+                  + volume + liquidity + volatility, data = data_buy_2)
+stargazer(model_buy_4, type = "text")
+```
+
+### Sell Side HFT Ratio Determinants
+
+```{r}
+data_sell_1 <- data %>% 
+  select(hft_sell, return) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_sell = (hft_sell - mean(hft_sell)) / sd(hft_sell)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_sell_1 <- lm(hft_sell ~ `return_type_above 5%` + `return_type_below -5%`, data = data_sell_1)
+stargazer(model_sell_1, type = "text")
+
+model_sell_2 <- lm(hft_sell ~ `return_type_above 2%` + `return_type_below -2%`, data = data_sell_1)
+stargazer(model_sell_2, type = "text")
+
+data_sell_2 <- data %>% 
+  select(hft_sell, return, volume, liquidity, volatility) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_sell = (hft_sell - mean(hft_sell)) / sd(hft_sell),
+         volume = (volume - mean(volume)) / sd(volume),
+         liquidity =(liquidity - mean(liquidity)) / sd(liquidity)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_sell_3 <- lm(hft_sell ~ `return_type_above 5%` + `return_type_below -5%` + 
+                     volume + liquidity + volatility, data = data_sell_2)
+stargazer(model_sell_3, type = "text") 
+
+model_sell_4 <- lm(hft_sell ~ `return_type_above 2%` + `return_type_below -2%` + 
+                     volume + liquidity + volatility, data = data_sell_2)
+stargazer(model_sell_4, type = "text")
+```
+
+***As a result;***
+
+Lower HFT activity was observed on stocks and days with extreme price movements.
+
+HFT decreased on the sell side during positive extreme price movements.
+
+HFT decreased on the buy side during negative extreme price movements
