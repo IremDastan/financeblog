@@ -1,0 +1,558 @@
+---
+title: "Yüksek Frekanslı İşlemlerin Borsa İstanbul’da Uç Fiyat Hareketleri Çerçevesinde İncelenmesi"
+description: |
+  Bu çalışmada Borsa İstanbul’da yüksek frekanslı işlemin işlemler ((High Frequency Trading), (HFT))’in varoluşuna ilişkin analizler yaptım. Baz aldığım nokta; uç fiyat hareketleri (((EPM’ler), (Extreme Price Movements)) anındaki yüksek frekanslı işlemlerin davranışlarını ve piyasa payını inceleyeceğim. 
+author:
+  - name: Irem Dastan
+date: 2022-05-08
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Finance
+  - Market Microstructure
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(ggalt)
+library(lubridate)
+library(stargazer)
+library(fastDummies)
+
+data <- read.csv("data.csv") #Veriye Github üzerinden erisebilirsiniz.
+names(data)[1] <- "stock" 
+```
+
+Bu çalışmada Borsa İstanbul’da yüksek frekanslı işlemin ((High Frequency Trading), (HFT))’in varoluşuna ilişkin analizler yaptım. Baz aldığım nokta; uç fiyat hareketleri (((EPM’ler), (Extreme Price Movements)) anındaki yüksek frekanslı işlemlerin davranışlarını ve piyasa payını inceleyeceğim. 
+
+Borsaların tamamen otomatik hale gelmesi piyasada gerçekleşen işlem sayısını artırmış ve aracıların teknoloji kullanımını genişletmelerini sağlamıştır. Verilerin işlem akışı, piyasa bilgileri akışına hızlı bir şekilde işlenmesi ve tepki verme yeteneğine dayanan yazılımların arkasında alım satım yapılması, kısa sürede çok sayıda işlem yapılmasını mümkün kılmıştır. Ancak yine de finansal piyasalarda, yatırım yapmak için verilerin kullanılması veya işlemlere hızlı bir şekilde girebilmek için süratle ilgili sorunlar vardır. Bu sebeple finansal piyasalarda en hızlı aktörlerin birbirleriyle rekabet ettikleri bir hız yarışı mevcuttur. Böylece artık piyasalar insanlar tarafından yapılan alım-satım işlemleri ile değil, bilgisayar algoritmaları ile domine edilmektedir.
+
+HFT; bir saniyenin kesirlerinde, binlerce emir gönderimi, yüksek oranda emir iptalleri ve gün içi marjinal kâr hedefi ile özdeşleştirilebilen saniye veya milisaniye cinsinden pozisyon tutan bir işlem tipidir. Kısaca; “HFT, düşük milisaniye gecikmelerinde çok sayıda sipariş gönderme teknolojik yeteneğinden yararlanır” (Ersan ve Ekinci, 2016).
+
+HFT algoritmaları birbirleri ile rekabet ettikçe, iki zorlukla karşılaşırlar:
+
+*	Her mikro saniyede büyük miktarda veri alırlar.
+
+*	Gözlemlenen veriler üzerinde oldukça hızlı hareket edebilmeliler, çünkü gözlemledikleri sinyallerin kârlılığı çok çabuk azalır.
+
+HFT firmalarının likidite sağlama ve piyasadaki fiyat arbitrajında oynadıkları baskın rol, ticaret alanlarının piyasa payını doğrudan etkiler. Arbitrajlara katılımı kısa süreli alım-satım işlemleri ve yüksek hacimleriyle küçük fiyat farklarından kâr elde edip böylece birden fazla piyasada işlem gören hisselerin fiyat farklarından temin edilmektedir.
+
+30 Kasım 2015 tarihinde Pay Piyasasında devreye alınan BISTECH platformu HFT dahiliyetine imkan vermiştir. Borsa İstanbul’da HFT payı, ABD ve Avrupa ülkeleri kadar gelişmiş değildir. 
+
+HFT ile AT (Algorithmic Trading)’nin arasındaki fark; AT daha kapsamlıdır ve HFT, AT’nin alt kümesidir. AT bilgisayar ortamında tanımlanan koşullar ile alım satım sağlayan bir yapıdır, HFT ise çok küçük saniyelerde oluşan fırsatları değerlendirmektedir. Kısacası HFT, AT’nin bir türüdür.
+
+
+```{r echo=FALSE}
+knitr::include_graphics("1.png")
+```
+
+*BIST30 endeksinde listelenen hisse senetleri.*
+
+```{r echo=FALSE}
+knitr::include_graphics("2.png")
+```
+
+*Aralık 2015 – Mart 2017 arası 16 aylık dönem, 339 işlem günü.*
+
+```{r echo=FALSE}
+knitr::include_graphics("3.png")
+```
+
+*Gün-içi emir-işlem defterlerinden elde edilmiş değişkenlerin günlük düzeyde tutulan hallerini Ekinci ve Ersan (2020) çalışmasından temini.*
+
+Çalışmadaki değişkenler; HFT toplam, HFT alım-satım tarafları, HFT alım-satım farkı (HFT dengesizliği)’dır. Kontrol değişkenleri; işlem hacmi, likidite ve volatilitedir. Temel bağımsız değişkenler olan kukla değişkenleri ise; uç pozitif fiyat hareketleri (%2 ve %5 üzeri getirili olan hisse ve günler), ve uç negatif fiyat hareketleri (eksi %2 ve eksi %5 altı getirili olan hisse ve günler)’dir.
+
+**Üç aşamada analizleri yapıyorum.**
+
+*Hisse ve getiri aralığı bazlı*
+
+*T-test*
+
+*Regresyon analizi*
+
+
+**HFT’nin Hesaplanması**
+
+Öncelikle veride bazı emirler HFT emri olarak işaretleniyor. Bunu iki aşamada yapıyoruz.
+
+*Birincisi,*
+
+1 saniye veya daha kısa sürede gelen en az iki mesaj (emir gönderim, değişiklik, iptal) içeren emirler
+
+*İkincisi,*
+
+1. aşamada belirlenen HFT emirlerinin herhangi bir mesajı ile aynı saniyede ve aynı büyüklükte gelen aynı hissedeki diğer emirler olarak belirliyoruz.
+
+
+$HFT\ ratio_{i,t}=\frac{Electronic\ message_{i,t}^{HFT}}{Electronic\ message_{all^{HFT}}}$
+
+$Liquidity_{i,t}= \sum_{j=1}^{N} Volume_{i,j,t}*(\frac{Duration_{i,j,t}}{Duration_{total}})$
+
+## Analizler
+
+### Günlük Getiri Aralıklarında Değişkenlerin İstatistikleri
+
+```{r}
+table1 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > -0.05 & return <= -0.02 ~ "between -5% and -2%",
+      return > -0.02 & return <= 0.02 ~ "between -2% and 2%",
+      return > 0.02 & return <= 0.05 ~ "between 2% and 5%",
+      return > 0.05 ~ "above 5%"
+    )
+  ) %>% 
+  group_by(return_type) %>% 
+  summarise(
+    avg_volatility = mean(volatility),
+    sd_volatility = sd(volatility),
+    avg_liquidity = mean(liquidity),
+    sd_liquidity = sd(liquidity),
+    avg_hft_buy = mean(hft_buy),
+    sd_hft_buy = sd(hft_buy),
+    avg_hft_sell = mean(hft_sell),
+    sd_hft_sell = sd(hft_sell),
+    avg_hft = mean(hft),
+    sd_hft = sd(hft),
+    avg_return = mean(return),
+    sd_return = sd(return),
+    avg_bist30_return = mean(bist30_return),
+    sd_bist30_return = sd(bist30_return),
+    avg_extra_ret_market = mean(extra_ret_market),
+    sd_extra_ret_market = sd(extra_ret_market),
+    avg_volume = mean(volume),
+    sd_volume = sd(volume)
+  ) %>% 
+  mutate(
+    return_type = factor(
+      return_type, levels = c("below -5%",
+                              "between -5% and -2%",
+                              "between -2% and 2%",
+                              "between 2% and 5%",
+                              "above 5%")
+    )
+  ) %>% 
+  arrange(return_type) %>% 
+  mutate_at(vars(-c(return_type, avg_liquidity, sd_liquidity, avg_volume, sd_volume)),
+            .funs = function(x) round(x, digits = 4)) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  `colnames<-`(.[1,]) %>% 
+  slice(-1)
+
+kable(table1) %>% 
+  kable_paper("hover", full_width = F)
+
+```
+
+*Likiditeye bakıldığında ortalama ve standart sapması en büyük olan %-5 altı getirisiz hisse ve günlere aittir. Piyasa hacmi ortalaması getirisiz günlerde en yoğun şekilde yaşanmıştır.*
+
+### Hisse Bazında Getirilerin %2 üzeri ve %-2 altı Günlerinin Sayısı
+
+```{r fig.width=12, fig.height=10}
+graph1_1 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = "return_type", values_from = "number_of_days")
+
+graph1_2 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit()
+
+ggplot(graph1_1, aes(y = stock)) + 
+  geom_point(data = graph1_2,
+             aes(x = number_of_days, color = return_type), size = 3) +
+  scale_color_manual(values = c("orange","#76a5af")) +
+  geom_dumbbell(aes(x = `below -2%`, xend = `above 2%`),
+                size_x = 5, 
+                size_xend = 5,
+                colour_x = "#76a5af",
+                colour_xend = "orange") +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text = element_text(size = 12, face = "bold")) +
+  guides(color = guide_legend(reverse=T)) +
+  labs(title = "The Number of Days of Returns")
+```
+
+
+*%5 üzeri getirili gün sayısının en fazla olduğu hisse senedi KOZAL’dır, en az günlü olan hisse senetleri ise; ENKAI, KCHOL, PETKM, SAHOL, TTKOM ve TUPRS’tır.*
+
+### Hisse Bazında Getirilerin %5 üzeri ve %-5 altı Günlerinin Sayısı
+
+```{r fig.width=12, fig.height=10}
+graph2_1 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit() %>% 
+  pivot_wider(names_from = "return_type", values_from = "number_of_days")
+
+graph2_2 <- data %>% 
+  mutate(
+    return_type=case_when(
+      return < -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%"
+    )
+  ) %>% 
+  group_by(stock, return_type) %>% 
+  summarise(number_of_days = n()) %>% 
+  na.omit()
+
+ggplot(graph2_1, aes(y = stock)) + 
+  geom_point(data = graph2_2,
+             aes(x = number_of_days, color = return_type), size = 3) +
+  scale_color_manual(values = c("#80dead","#f1cbff")) +
+  geom_dumbbell(aes(x = `below -5%`, xend = `above 5%`),
+                size_x = 5, 
+                size_xend = 5,
+                colour_x = "#f1cbff",
+                colour_xend = "#80dead") +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        axis.text = element_text(size = 12, face = "bold")) +
+  guides(color = guide_legend(reverse=T)) +
+  labs(title = "The Number of Days of Returns")
+```
+
+*Burada verimiz boyunca seçtiğimiz getiri sınırları dahilinde HFT’leri belirleyip hisse bazında ortalamasını aldık. Getirisi %-5 altı HFT ortalaması en fazla olan hisse senedi TTKOM’dur.*
+
+### Aylık Ortalama HFT Oranı ve Uç Fiyat Hareketli Gün-Hisse Sayısı
+
+```{r preview=TRUE}
+graph3 <- data %>%
+  select(day, return, hft) %>% 
+  mutate(day = dmy(day), 
+         month = month(day),
+         year = year(day),
+         return_type=case_when(
+           return < -0.02 ~ "below -2%",
+           return > 0.02 ~ "above 2%"
+    )) %>% 
+  na.omit() %>% 
+  group_by(month, year) %>% 
+  summarise("Extreme Price Movements" = n(),
+            "High Frequency Trading" = mean(hft)) %>% 
+  mutate(day = as.Date(paste0(year, "-", month, "-", 1))) %>% 
+  arrange(day) %>% 
+  ungroup() %>% 
+  select(day, `Extreme Price Movements`, `High Frequency Trading`) %>% 
+  pivot_longer(!day, names_to = "types", values_to = "value")
+
+ggplot(graph3, aes(x = day, y = value, group = types, color = types)) +
+  geom_line() +
+  theme_minimal() + 
+  theme(axis.title = element_blank(), 
+        legend.position = "none") +
+  facet_wrap(~types, scales = "free_y", ncol = 1)
+
+```
+
+*Grafikte sol tarafta değerleri olan EPM’yi ve sağ tarafta oranları bulunan HFT’nin ilişkisini görmekteyiz. EPM’deki uç fiyat oranımız eksi ve artı %2’dir. EPM değerleri, getirideki bu iki uç fiyat dahilinde gün sayılarının toplamıdır. HFT oranları ise, ay bazında HFT’lerin toplamının o ayki gün sayısına bölümü ile elde edilmiştir. EPM günlerinin sayısı azalmakta ve HFT oranının arttığı görülmektedir. Uç fiyat hareketinin en az olduğu periyot; Ekim 2016, en fazla olduğu ise Aralık 2015’tir. HFT oranı Mart 2017’de en yüksek seviyeye ulaşmıştır.*
+
+### Günlük Getiri Aralıklarında HFT Aktivitesi
+
+```{r}
+table2 <- data %>% 
+  select(hft, hft_buy, hft_sell, return) %>% 
+  mutate(hft_buy_sell_diff = hft_buy - hft_sell,
+         hft_inequilibrium = (hft_buy - hft_sell)/hft, 
+         return_type=case_when(
+           return <= -0.05 ~ "below -5%",
+           return > -0.05 & return <= -0.02 ~ "between -5% and -2%",
+           return > -0.02 & return <= -0.005 ~ "between -2% and -0.5%",
+           return > -0.005 & return <= 0.005 ~ "between -0.5% and 0.5%",
+           return > 0.005 & return <= 0.02 ~ "between 0.5% and 2%",
+           return > 0.02 & return <= 0.05 ~ "between 2% and 5%",
+           return > 0.05 ~ "above 5%"
+    )) %>% 
+  group_by(return_type) %>% 
+  summarise(
+    avg_hft = mean(hft),
+    avg_hft_buy = mean(hft_buy),
+    avg_hft_sell = mean(hft_sell),
+    avg_hft_buy_sell_diff = mean(hft_buy_sell_diff),
+    avg_hft_inequilibrium = mean(hft_inequilibrium, na.rm = T)
+  ) %>% 
+  mutate(
+    return_type = factor(
+      return_type, levels = c("below -5%",
+                              "between -5% and -2%",
+                              "between -2% and -0.5%",
+                              "between -0.5% and 0.5%",
+                              "between 0.5% and 2%",
+                              "between 2% and 5%",
+                              "above 5%")
+    )
+  ) %>% 
+  arrange(return_type) %>% 
+  mutate_at(vars(-c(return_type)), .funs = function(x) round(x, digits = 4)) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  `colnames<-`(.[1,]) %>% 
+  slice(-1)
+
+kable(table2) %>% 
+  kable_paper("hover", full_width = F)
+```
+
+*Tabloda farklı getiri aralıklarına giren günlerin HFT değişkenlerinin ortalamaları bulunmaktadır. Eksi %5’ten sıfıra yaklaşırken HFT ve HFT alım değerleri küçülmekte olup, sıfırdan sonrası için büyümektedir. HFT alım ve satım farkında oluşan ortalamalarda ise sıfıra yaklaşırken küçülüp pozitif EPM’ler durumunda ise ortalamaları büyümektedir. HFT farkın HFT ye oranının ortalamasında ise eksi %5 altı EPM’li hisse ve günlerden itibaren pozitif EPM’li hisse-günlere doğru yaklaştıkça bu ortalama değer büyümektedir.*
+
+### Uç Fiyat Hareketli gün-hisselerde HFT Aktivitesi
+
+```{r}
+table3 <- data %>% 
+   select(hft, hft_buy, hft_sell, return) %>% 
+  mutate(hft_buy_sell_diff = hft_buy - hft_sell,
+         hft_inequilibrium = (hft_buy - hft_sell)/hft, 
+         return_type=case_when(
+           return <= -0.05 ~ "below -5%",
+           return > -0.05 & return <= -0.02 ~ "between -5% and -2%",
+           return > -0.02 & return <= -0.005 ~ "between -2% and -0.5%",
+           return > -0.005 & return <= 0.005 ~ "between -0.5% and 0.5%",
+           return > 0.005 & return <= 0.02 ~ "between 0.5% and 2%",
+           return > 0.02 & return <= 0.05 ~ "between 2% and 5%",
+           return > 0.05 ~ "above 5%"
+    )) %>% 
+  group_by(return_type) %>% 
+  summarise(
+    avg_hft = mean(hft),
+    avg_hft_buy = mean(hft_buy),
+    avg_hft_sell = mean(hft_sell),
+    avg_hft_buy_sell_diff = mean(hft_buy_sell_diff),
+    avg_hft_inequilibrium = mean(hft_inequilibrium, na.rm = T),
+    p_hft = t.test(hft)$p.value,
+    p_hft_buy = t.test(hft_buy)$p.value,
+    p_hft_sell = t.test(hft_sell)$p.value,
+    p_hft_buy_sell_diff = t.test(hft_buy_sell_diff)$p.value,
+    p_hft_inequilibrium = t.test(hft_inequilibrium)$p.value
+  ) %>% 
+  mutate(
+    return_type = factor(
+      return_type, levels = c("below -5%",
+                              "between -5% and -2%",
+                              "between -2% and -0.5%",
+                              "between -0.5% and 0.5%",
+                              "between 0.5% and 2%",
+                              "between 2% and 5%",
+                              "above 5%")
+    )
+  ) %>% 
+  arrange(return_type) %>% 
+  select(return_type, avg_hft, p_hft, avg_hft_buy, p_hft_buy, avg_hft_sell,
+         p_hft_sell, avg_hft_buy_sell_diff, p_hft_buy_sell_diff, avg_hft_inequilibrium, p_hft_inequilibrium) %>% 
+  mutate_at(vars(-c(return_type)), .funs = function(x) round(x, digits = 4)) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  `colnames<-`(.[1,]) %>% 
+  slice(-1) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  mutate_all(.funs = function(x) x - .[,4])
+  
+kable(table3) %>% 
+  kable_paper("hover", full_width = F)
+```
+
+*Tablo HFT aktivitesinin negatif uç fiyat hareketleri sırasında alım yönlü pozisyon almayı azalttığını, pozitif uç fiyat hareketleri sırasında ise satım yönlü pozisyon almayı düşürdüğünü göstermektedir.*
+
+*It was 0 (zero) because the p values were too small.*
+
+## Uç fiyat hareketleri ve HFT ilişkisi – Regresyon modelleri
+
+$HFT_{i,t}= EPM_{i,t}^{+0.05} + EPM_{i,t}^{-0.05} + \epsilon_{i,t}$
+
+$HFT_{i,t}= EPM_{i,t}^{+0.02} + EPM_{i,t}^{-0.02} + \epsilon_{i,t}$
+
+$HFT_{i,t}= EPM_{i,t}^{+0.05} + EPM_{i,t}^{-0.05} + Volume_{i,t} + Liquidity_{i,t} + Volatility_{i,t} + \epsilon_{i,t}$
+
+$HFT_{i,t}= EPM_{i,t}^{+0.02} + EPM_{i,t}^{-0.02} + Volume_{i,t} + Liquidity_{i,t} + Volatility_{i,t} + \epsilon_{i,t}$
+
+### Toplam HFT Oranı Belirleyicileri
+
+```{r}
+data_all_1 <- data %>% 
+  select(hft, return) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft = (hft - mean(hft)) / sd(hft)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_all_1 <- lm(hft ~ `return_type_above 5%` + `return_type_below -5%`, data = data_all_1)
+stargazer(model_all_1, type = "text")
+
+model_all_2 <- lm(hft ~ `return_type_above 2%` + `return_type_below -2%`, data = data_all_1)
+stargazer(model_all_2, type = "text")
+
+data_all_2 <- data %>% 
+  select(hft, return, volume, liquidity, volatility) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft = (hft - mean(hft)) / sd(hft),
+         volume = (volume - mean(volume)) / sd(volume),
+         liquidity =(liquidity - mean(liquidity)) / sd(liquidity)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_all_3 <- lm(hft ~ `return_type_above 5%` + `return_type_below -5%` +
+                    volume + liquidity + volatility, data = data_all_2)
+stargazer(model_all_3, type = "text") 
+
+model_all_4 <- lm(hft ~ `return_type_above 2%` + `return_type_below -2%` + 
+                    volume + liquidity + volatility, data = data_all_2)
+stargazer(model_all_4, type = "text")
+
+```
+
+### Alım tarafı HFT Oranı Belirleyicileri
+
+```{r}
+data_buy_1 <- data %>% 
+  select(hft_buy, return) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_buy = (hft_buy - mean(hft_buy)) / sd(hft_buy)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_buy_1 <- lm(hft_buy ~ `return_type_above 5%` + `return_type_below -5%`, data = data_buy_1)
+stargazer(model_buy_1, type = "text")
+
+model_buy_2 <- lm(hft_buy ~ `return_type_above 2%` + `return_type_below -2%`, data = data_buy_1)
+stargazer(model_buy_2, type = "text")
+
+data_buy_2 <- data %>% 
+  select(hft_buy, return, volume, liquidity, volatility) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_buy = (hft_buy - mean(hft_buy)) / sd(hft_buy),
+         volume = (volume - mean(volume)) / sd(volume),
+         liquidity =(liquidity - mean(liquidity)) / sd(liquidity)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_buy_3 <- lm(hft_buy ~ `return_type_above 5%` + `return_type_below -5%` 
+                  + volume + liquidity + volatility, data = data_buy_2)
+stargazer(model_buy_3, type = "text") 
+
+model_buy_4 <- lm(hft_buy ~ `return_type_above 2%` + `return_type_below -2%` 
+                  + volume + liquidity + volatility, data = data_buy_2)
+stargazer(model_buy_4, type = "text")
+```
+
+### Satım Tarafı HFT Oranı Belirleyicileri
+
+```{r}
+data_sell_1 <- data %>% 
+  select(hft_sell, return) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_sell = (hft_sell - mean(hft_sell)) / sd(hft_sell)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_sell_1 <- lm(hft_sell ~ `return_type_above 5%` + `return_type_below -5%`, data = data_sell_1)
+stargazer(model_sell_1, type = "text")
+
+model_sell_2 <- lm(hft_sell ~ `return_type_above 2%` + `return_type_below -2%`, data = data_sell_1)
+stargazer(model_sell_2, type = "text")
+
+data_sell_2 <- data %>% 
+  select(hft_sell, return, volume, liquidity, volatility) %>% 
+  mutate(
+    return_type=case_when(
+      return <= -0.05 ~ "below -5%",
+      return > 0.05 ~ "above 5%",
+      return <= -0.02 ~ "below -2%",
+      return > 0.02 ~ "above 2%"
+    )
+  ) %>% 
+  mutate(hft_sell = (hft_sell - mean(hft_sell)) / sd(hft_sell),
+         volume = (volume - mean(volume)) / sd(volume),
+         liquidity =(liquidity - mean(liquidity)) / sd(liquidity)) %>% 
+  fastDummies::dummy_cols(.) %>% 
+  mutate_if(is.numeric, ~replace_na(., 0))
+
+model_sell_3 <- lm(hft_sell ~ `return_type_above 5%` + `return_type_below -5%` + 
+                     volume + liquidity + volatility, data = data_sell_2)
+stargazer(model_sell_3, type = "text") 
+
+model_sell_4 <- lm(hft_sell ~ `return_type_above 2%` + `return_type_below -2%` + 
+                     volume + liquidity + volatility, data = data_sell_2)
+stargazer(model_sell_4, type = "text")
+```
+
+***Sonuç olarak;***
+
+Hisse senetlerinde ve aşırı fiyat hareketlerinin olduğu günlerde daha düşük HFT aktivitesi gözlemlenmiştir.
+
+Pozitif aşırı fiyat hareketleri sırasında satış tarafında HFT azalmıştır.
+
+Negatif aşırı fiyat hareketleri sırasında HFT alış tarafında azalmıştır.
