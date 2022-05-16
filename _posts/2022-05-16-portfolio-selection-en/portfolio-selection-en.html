@@ -1505,10 +1505,6 @@ let’s say an asset X has a return of 2.5% and a variance of 4%. On the
 other hand, an asset Y has the same risk, but its return is 3.5%. How
 does ? Let’s see in the graph below.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='fu'>knitr</span><span class='fu'>::</span><span class='fu'><a href='https://rdrr.io/pkg/knitr/man/include_graphics.html'>include_graphics</a></span><span class='op'>(</span><span class='st'>"img1.jpg"</span><span class='op'>)</span>
-</code></pre>
-</div>
 <p><img src="img1.jpg" width="1024" data-distill-preview=1 /></p>
 </div>
 <p>If we compare the points A’, B’ and C’ with the points A, B, C on the
@@ -1800,13 +1796,6 @@ optimal portfolio with:</h3>
 </div>
 <p>The red dot here is the best portfolio.</p>
 <div class="layout-chunk" data-layout="l-body">
-<div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>myPortfolio</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='fl'>1</span><span class='op'>:</span><span class='fl'>10</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'><a href='https://rdrr.io/pkg/kableExtra/man/kbl.html'>kbl</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'><a href='https://rdrr.io/pkg/kableExtra/man/kable_styling.html'>kable_styling</a></span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
-</div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -1845,45 +1834,38 @@ TUPRS
 <tbody>
 <tr>
 <td style="text-align:right;">
-0.01
+0.11
+</td>
+<td style="text-align:right;">
+0.04
 </td>
 <td style="text-align:right;">
 0
 </td>
 <td style="text-align:right;">
-0.18
-</td>
-<td style="text-align:right;">
-0.2
-</td>
-<td style="text-align:right;">
-0.21
-</td>
-<td style="text-align:right;">
-0.02
-</td>
-<td style="text-align:right;">
-0.12
-</td>
-<td style="text-align:right;">
 0.03
 </td>
 <td style="text-align:right;">
-0.14
+0.22
 </td>
 <td style="text-align:right;">
-0.08
+0.11
+</td>
+<td style="text-align:right;">
+0.11
+</td>
+<td style="text-align:right;">
+0.15
+</td>
+<td style="text-align:right;">
+0.11
+</td>
+<td style="text-align:right;">
+0.11
 </td>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode">
-<pre class="sourceCode r"><code class="sourceCode r"><span class='va'>myPortfolio</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'><a href='https://dplyr.tidyverse.org/reference/select.html'>select</a></span><span class='op'>(</span><span class='fl'>11</span><span class='op'>:</span><span class='fl'>13</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'><a href='https://rdrr.io/pkg/kableExtra/man/kbl.html'>kbl</a></span><span class='op'>(</span><span class='op'>)</span> <span class='op'><a href='https://magrittr.tidyverse.org/reference/pipe.html'>%&gt;%</a></span> 
-  <span class='fu'><a href='https://rdrr.io/pkg/kableExtra/man/kable_styling.html'>kable_styling</a></span><span class='op'>(</span><span class='op'>)</span>
-</code></pre>
-</div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -1901,13 +1883,13 @@ SharpeRatio
 <tbody>
 <tr>
 <td style="text-align:right;">
-0.0011548
+0.0010413
 </td>
 <td style="text-align:right;">
-0.018506
+0.0187875
 </td>
 <td style="text-align:right;">
-0.0241
+0.0177
 </td>
 </tr>
 </tbody>

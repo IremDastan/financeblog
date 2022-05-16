@@ -27,7 +27,7 @@ library(fPortfolio);library(tseries);library(PerformanceAnalytics)
 
 In a portfolio, it is necessary to consider the risk as well as the return. The risk of a high-yielding asset can be very high, and if you did not make the right choice, you are very likely to lose. For example, let's say an asset X has a return of 2.5% and a variance of 4%. On the other hand, an asset Y has the same risk, but its return is 3.5%. How does ? Let's see in the graph below.
 
-```{r, preview=TRUE}
+```{r echo=FALSE, preview=TRUE}
 knitr::include_graphics("img1.jpg")
 ```
 
@@ -295,7 +295,7 @@ myPortfolio <- stock10 %>%
 
 The red dot here is the best portfolio.
 
-```{r}
+```{r echo=FALSE}
 
 myPortfolio %>% 
   select(1:10) %>% 
