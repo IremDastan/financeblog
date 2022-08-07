@@ -1,0 +1,541 @@
+---
+title: "Portfolio Selection: Three Factor Model (Fama and French'93) vs Sharpe Ratio"
+description: |
+  In this study we will select a portfolio based on Fama and French's (1993) three-factor model study. Next, we will compare the sharpe ratio with the three factor model.
+author:
+  - name: Irem Dastan
+date: 2022-08-07
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Portfolio Selection
+  - CAPM
+  - Risk-Return
+  - Market Microstructure
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(PerformanceAnalytics)
+library(kableExtra)
+```
+
+# Portfolio Selection: Three Factor Model (Fama and French'93) vs Sharpe Ratio
+
+This time we will select a portfolio based on Fama and French's (1993) three-factor model study. Next, we will compare the sharpe ratio with the three factor model.
+
+This model describes stock returns through three factors
+
+(1) market risk,
+
+(2) better performance of small-cap companies than large-cap companies, and
+
+(3) high book-companies with low book value versus companies that perform better than the market.
+
+The model argues that high-value and small-cap companies tend to consistently outperform the general market.
+
+### For those who want to examine this article of Fama and French (1993) in more detail, click below.
+
+[Here](https://www.bauer.uh.edu/rsusmel/phd/Fama-French_JFE93.pdf)
+
+***Fama & French (1993) three factor model is as follows:***
+
+$\mathrm{R}_{\mathrm{it}}-\mathrm{R}_{\mathrm{ft}}=\alpha_{\mathrm{i}}+\beta_{\mathrm{i}}\left(\mathrm{R}_{\mathrm{mt}}-\mathrm{R}_{\mathrm{ft}}\right)+\mathrm{s}_{\mathrm{i}} \mathrm{SMB}_{\mathrm{t}}+\mathrm{h}_{\mathrm{i}} \mathrm{HML}_{\mathrm{t}}$
+
+where
+
+$R_{i,t}$ : Return on asset i at time t
+
+$R_{f,t}$ : The value of the risk-free rate at time t
+
+$R_{m,t}$ : Return of the market portfolio at time t
+
+$\alpha_{\mathrm{i}}$ : Model's pricing error
+
+$SMB_{t}$ : The difference in return for portfolios with small and large market caps at time t.
+
+$HML_{t}$ : The difference in return for portfolios with high and low MV/BV ratios at time t.
+
+$\beta_{\mathrm{i}}, s_{i}, h_{i}$ : $\beta$ coefficients.
+
+
+My dataset includes 88 stocks I bought from Reuters between 28 May 2020 and 31 May 2022. Also, I used the "is yatirim" website for market value/book value data.
+
+\newpage 
+```{r}
+#importing the data
+
+hist_price <- read_excel("7822/historical.xlsx")
+nofna <- setNames(colSums(is.na(hist_price)), names(hist_price)) %>% 
+  as.data.frame() %>% 
+  rename("NofNA"=1) %>% 
+  filter(NofNA == 0) %>% 
+  rownames_to_column(var = "Ticker")
+
+hist_price <- hist_price %>% 
+  select(nofna$Ticker) %>% 
+  arrange(DATE) %>% 
+  mutate(DATE = as.Date(DATE)) %>% 
+  dplyr::filter(DATE >= as.Date("2020-05-28") & DATE <= as.Date("2022-05-31")) %>% 
+  mutate_at(vars(-DATE), function(x) lag((lead(x)-x)/x)) %>% 
+  na.omit()
+
+# market value/book value are from isyatirim
+mv_bv <- read_excel("7822/temelfinansal.xlsx") %>%
+  select(1,6,7) %>% 
+  rename("Ticker"=1,"MVBV"=2,"Date"=3) %>% 
+  dplyr::filter(Ticker %in% nofna$Ticker)
+
+mv <- read_excel("7822/temelozet.xlsx") %>%
+  select(1,5) %>% 
+  rename("Ticker"=1,"MV"=2) %>% 
+  dplyr::filter(Ticker %in% nofna$Ticker)
+
+riskfree <- 0.17/nrow(hist_price) #risk free rate for Turkey
+
+MarketRet <- hist_price %>% 
+  select(DATE,BIST100) %>% 
+  mutate(BIST100 = BIST100 - riskfree)
+
+```
+
+Equities are divided into two portfolios, small (S) and large (B), according to the size of the firm. According to the MV/BV ratio, the companies are; It is divided into three portfolios, 
+
+**low (L), medium (M), and high (H).**
+
+Portfolios consisting of the intersection of these portfolios are as follows: 
+
+***SL*** = This portfolio consists of stocks that are small for firm size and have the lowest MV/BV ratio in terms of MV/BV ratio.
+
+***SM*** = This portfolio consists of stocks with a MV/BV ratio that is small according to firm size and medium-sized in terms of MV/BV ratio.
+
+***SH*** = This portfolio consists of stocks that are small for the size of the firm and have a high MV/BV ratio in terms of MV/BV ratio.
+
+***BL*** = This portfolio consists of stocks with a large MV/BV ratio and a low MV/BV ratio in terms of firm size.
+
+***BM*** = This portfolio consists of stocks with a large MV/BV ratio and a medium size MV/BV ratio in terms of firm size.
+
+***BH*** = This portfolio consists of stocks that are large for the size of the firm and have a high MV/BV ratio in terms of MV/BV ratio.
+
+
+**Here we divide market value into two as small and big, and market value/book value into three as low, medium and high.**
+
+```{r}
+
+df <- mv %>% 
+  left_join(mv_bv, by = "Ticker") %>% 
+  mutate(
+    N_MVClass = ntile(MV,2),
+    N_MVBV = ntile(MVBV,3),
+    MVClass = case_when(
+      N_MVClass == 1 ~ "S",
+      N_MVClass == 2 ~ "B"
+    ),
+    MVBVClass = case_when(
+      N_MVBV == 1 ~ "L",
+      N_MVBV == 2 ~ "M",
+      N_MVBV == 3 ~ "H"
+    )
+  )
+
+```
+
+
+**We combine them according to the 6 portfolios we created above.**
+
+```{r}
+
+portfolio_strategy <- df %>% 
+  mutate(
+    MainClass = paste0(MVClass,MVBVClass)
+  )
+
+```
+
+
+**Calculation of SMB**
+
+```{r}
+
+s_ticker <- df %>% 
+  dplyr::filter(MVClass == "S") %>% 
+  pull(Ticker)
+
+s_portfolio <- hist_price %>% 
+  select(DATE,s_ticker)
+
+portfolio_s_return <- s_portfolio %>% 
+  column_to_rownames(var = "DATE")
+
+s_weights <- 1/ncol(portfolio_s_return)
+
+s_return <- Return.portfolio(portfolio_s_return,
+                             weights = rep(s_weights,ncol(portfolio_s_return)))
+
+portfolio_s_return <- as.data.frame(s_return) %>% 
+  rownames_to_column(var = "DATE") %>% 
+  rename("RETURN_S"=2)
+
+##
+
+df_b <- df %>% 
+  dplyr::filter(MVClass == "B") %>% 
+  pull(Ticker)
+
+b_portfolio <- hist_price %>% 
+  select(DATE,df_b) %>% 
+  drop_na()
+
+portfolio_b_return <- b_portfolio %>% 
+  column_to_rownames(var = "DATE")
+
+b_weights <- 1/ncol(portfolio_b_return)
+
+b_return <- Return.portfolio(portfolio_b_return,
+                             weights = rep(b_weights,ncol(portfolio_b_return)))
+
+portfolio_b_return <- as.data.frame(b_return) %>% 
+  rownames_to_column(var = "DATE") %>% 
+  rename("RETURN_B"=2)
+
+smb_return <- merge(portfolio_s_return,portfolio_b_return,by="DATE") %>% 
+  mutate(RETURN_SMB = (RETURN_S - RETURN_B),
+         DATE = as.Date(DATE)) %>% 
+  select(DATE,RETURN_SMB)
+
+```
+
+
+**Calculation of HML**
+
+```{r}
+
+df_h <- df %>% 
+  dplyr::filter(MVBVClass == "H") %>% 
+  pull(Ticker)
+
+h_portfolio <- hist_price %>% 
+  select(DATE,df_h) %>% 
+  drop_na()
+
+portfolio_h_return <- h_portfolio %>% 
+  column_to_rownames(var = "DATE")
+
+h_weights <- 1/ncol(portfolio_h_return)
+
+h_return <- Return.portfolio(portfolio_h_return,
+                             weights = rep(h_weights,ncol(portfolio_h_return)))
+
+portfolio_h_return <- as.data.frame(h_return) %>% 
+  rownames_to_column(var = "DATE") %>% 
+  rename("RETURN_H"=2)
+
+##
+
+df_l <- df %>% 
+  dplyr::filter(MVBVClass == "L") %>% 
+  pull(Ticker)
+
+l_portfolio <- hist_price %>% 
+  select(DATE,df_l) %>% 
+  drop_na()
+
+portfolio_l_return <- l_portfolio %>% 
+  column_to_rownames(var = "DATE")
+
+l_weights <- 1/ncol(portfolio_l_return)
+
+l_return <- Return.portfolio(portfolio_l_return,
+                             weights = rep(l_weights,ncol(portfolio_l_return)))
+
+portfolio_l_return <- as.data.frame(l_return) %>% 
+  rownames_to_column(var = "DATE") %>% 
+  rename("RETURN_L"=2)
+
+hml_return <- merge(portfolio_h_return,portfolio_l_return,by="DATE") %>% 
+  mutate(RETURN_HML = (RETURN_H - RETURN_L),
+         DATE = as.Date(DATE)) %>% 
+  select(DATE,RETURN_HML)
+
+```
+
+
+
+```{r}
+
+sixportfolios <- data.frame()
+strategies <- c("SL","SM","SH","BL","BM","BH")
+
+for(s in 1:length(strategies)){
+  
+  portfolio_strategy_ticker <- portfolio_strategy %>% 
+    filter(MainClass == strategies[s]) %>% 
+    pull(Ticker)
+  
+  portfolio_strategy_return <- hist_price %>% 
+    select(DATE,portfolio_strategy_ticker)
+  
+  portfolio_strategy_return <- portfolio_strategy_return %>% 
+    column_to_rownames(var = "DATE")
+  
+  strategy_weights <- 1/ncol(portfolio_strategy_return)
+  
+  strategy_return <- Return.portfolio(portfolio_strategy_return,
+                                      weights = rep(strategy_weights,
+                                                    ncol(portfolio_strategy_return)))
+  
+  #portfolio_strategy_return$DATE <- index(strategy_return)
+  portfolio_strategy_return$RETURN <- as.numeric(strategy_return$portfolio.returns)
+  portfolio_strategy_return$TYPE <- strategies[s]
+  
+  portfolio_strategy_return <- as.data.frame(portfolio_strategy_return) %>% 
+    rownames_to_column(var = "DATE") %>% 
+    rename("RETURN_X"=2) %>% 
+    mutate(RETURN_X = RETURN_X - riskfree, DATE = as.Date(DATE)) %>% 
+    select(DATE,RETURN_X,TYPE)
+  
+  sixportfolios <- sixportfolios %>% bind_rows(portfolio_strategy_return)
+  
+  if(s == 6){
+    
+    sixportfolios$RETURN_X <- sixportfolios$RETURN_X - riskfree
+      }
+  }
+
+
+```
+
+**In this section, we perform regression analysis for 6 portfolios.**
+
+$H_{0}$: The alpha coefficient estimated in the time series regressions applied to test whether the Fama and French Three-Factor Asset Pricing Model is valid in Borsa Istanbul is not different from zero.
+
+$H_1$: The alpha coefficient estimated in the time series regressions applied to test whether the Fama and French Three-Factor Asset Pricing Model is valid in Borsa Istanbul is different from zero.
+
+For $\alpha$ we take portfolios where we cannot reject $H_{0}$ at the 0.05 level.
+
+```{r}
+
+modeloutput <- data.frame()
+
+for(k in 1:length(strategies)){
+  
+  regressionDF <- sixportfolios %>% 
+    dplyr::filter(TYPE == strategies[k]) %>% 
+    select(DATE,RETURN_X,-TYPE) %>% 
+    left_join(MarketRet, by = "DATE") %>% 
+    left_join(smb_return, by = "DATE") %>% 
+    left_join(hml_return, by = "DATE")
+  
+  model <- lm(RETURN_X ~ BIST100 + RETURN_SMB + RETURN_HML, data = regressionDF)
+  
+  tbloutput <- data.frame(
+    alpha = as.numeric(summary(model)$coefficients[,4][1]),
+    beta = as.numeric(summary(model)$coefficients[,4][2]),
+    SMB_param = as.numeric(summary(model)$coefficients[,4][3]),
+    HML_param = as.numeric(summary(model)$coefficients[,4][4]),
+    TYPE = strategies[k]
+  )
+  
+  modeloutput <- modeloutput %>% bind_rows(tbloutput)
+  
+  if(k == length(strategies)){
+    
+    modeloutput <- modeloutput %>% 
+      pivot_longer(!TYPE, names_to = "Parameters", values_to = "p_values") %>% 
+      arrange(TYPE) %>% 
+      mutate(Result = ifelse(p_values <= 0.05, "<= 0.05","> 0.05")) %>% 
+      select(-p_values) %>% 
+      pivot_wider(names_from = "Parameters", values_from = "Result")
+    
+  }
+  
+}
+
+modeloutput %>% 
+  kbl() %>% 
+  kable_styling()
+
+```
+
+```{r}
+
+whichisthebest <- modeloutput %>% 
+  dplyr::filter(alpha == "<= 0.05") %>% 
+  pull(TYPE)
+
+comparedf <- sixportfolios %>% 
+  dplyr::filter(TYPE %in% whichisthebest) %>% 
+  group_by(TYPE) %>% 
+  summarise(
+    ExpectedReturn = mean(RETURN_X),
+    Risk = sd(RETURN_X),
+    Sharpe = (ExpectedReturn - riskfree) / Risk
+  ) %>% 
+  arrange(desc(Sharpe)) %>% 
+  slice(1) %>% 
+  pull(TYPE)
+
+```
+
+
+Now, we need to determine the stocks that we will sell short according to the portfolio we have created. In determining this, we get help from the regression line.
+
+Accordingly, the parts whose price is above the 95% band are determined as **"Sell Zone"**. This is known as the overbought zone. Short selling is based on the fact that stocks will go down. For this reason, the shares in these regions were sold short.
+
+```{r}
+
+portfolio_strategy_x_ticker <- portfolio_strategy %>% 
+    filter(MainClass == comparedf) %>% 
+    pull(Ticker)
+
+shortselling <- read_excel("7822/historical.xlsx") %>% 
+  arrange(DATE) %>% 
+  mutate(DATE = as.Date(DATE)) %>% 
+  dplyr::filter(DATE >= as.Date("2020-05-28") & DATE <= as.Date("2022-05-31")) %>% 
+  select(DATE,portfolio_strategy_x_ticker) %>% 
+  pivot_longer(!DATE, names_to = "Ticker", values_to = "Price") %>% 
+  arrange(Ticker) %>% 
+  mutate(t = seq(1,nrow(.),1))
+
+for(i in 1:length(portfolio_strategy_x_ticker)){
+  
+  filteredStock <- portfolio_strategy_x_ticker[i]
+  thestock <- shortselling %>% 
+    filter(Ticker == filteredStock)
+  
+  model2 <- lm(Price ~ t, data = thestock)
+  summary(model2)
+  
+  thestock$Fitted <- model2$fitted.values
+  thestock$lwr95 <- predict(model2, interval = "predict", level = 0.95)[,2]
+  thestock$upr95 <- predict(model2, interval = "predict", level = 0.95)[,3]
+  
+  g <- ggplot(thestock) +
+    geom_line(aes(x = t, y = Price)) +
+    geom_line(aes(x = t, y = Fitted)) +
+    geom_line(aes(x = t, y = lwr95), linetype = "dashed", color = "red") +
+    geom_line(aes(x = t, y = upr95), linetype = "dashed", color = "red") +
+    theme_minimal() +
+    theme(axis.title = element_blank()) +
+    labs(title = paste0(portfolio_strategy_x_ticker[i]))
+  
+  ggsave(paste0(i,".jpg"))
+  
+}
+
+```
+
+According to this analysis we made;
+
+**Short Selling:** *AKSA, ALARK, DOAS, HEKTS, OYAKC, SASA, TUPRS*
+
+**Buy Selling:** *BIMAS, BRISA, FROTO, GUBRF, TOASO, TTKOM, TTRAK, VESBE*
+
+```{r}
+
+short_selling <- c("AKSA", "ALARK", "DOAS", "HEKTS", "OYAKC", "SASA", "TUPRS")
+buy_selling <- c("BIMAS", "BRISA", "FROTO", "GUBRF", "TOASO", "TTKOM", "TTRAK", "VESBE")
+
+master <- hist_price %>% 
+  select(DATE,portfolio_strategy_x_ticker) %>% 
+  drop_na() %>% 
+  pivot_longer(!DATE, names_to = "Ticker", values_to = "Return") %>% 
+  arrange(Ticker) %>% 
+  mutate(
+    "NewReturn" = case_when(
+      Ticker %in% short_selling ~ Return * -1,
+      Ticker %in% buy_selling ~ Return * 1
+    )
+  )
+
+```
+
+```{r}
+
+newReturndf <- master %>% 
+  select(-Return) %>% 
+  pivot_wider(names_from = "Ticker", values_from = "NewReturn") %>% 
+  column_to_rownames(var = "DATE")
+
+new_weights <- rep(1/nrow(newReturndf),ncol(newReturndf))
+
+new_portfolio_daily_returns <- Return.portfolio(newReturndf, weights = new_weights)
+new_expectedReturn <- mean(new_portfolio_daily_returns$portfolio.returns)
+new_risk <- sd(new_portfolio_daily_returns$portfolio.returns)
+sharpe_ratio <- round(SharpeRatio(new_portfolio_daily_returns, Rf = riskfree), 4) %>% .[[1]]
+
+ticker_summary <- newReturndf %>% 
+  rownames_to_column(var = "DATE") %>% 
+  `row.names<-`(NULL) %>% 
+  pivot_longer(!DATE, names_to = "Ticker", values_to = "NewReturn") %>% 
+  arrange(Ticker) %>% 
+  group_by(Ticker) %>% 
+  summarise(
+    Mean = mean(NewReturn),
+    Sd = sd(NewReturn),
+    Sharpe = (Mean - riskfree) / Sd
+  )
+
+ggplot(ticker_summary, aes(x = Mean, y = Sd, color = Ticker)) +
+  geom_point() +
+  ggrepel::geom_text_repel(aes(label = Ticker)) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = "Risk", y = "Expected Return")
+
+```
+
+In the graph, we see the values of the portfolio we created in terms of expected return and risk. The risks of GUBRF, FROTO, BRISA, TTRAK, TOASO and VESBE stocks are very close to each other. However, the stock with the highest return at the same risk level is GUBRF. On the other hand, we can say that DOAS, SASA, HEKTS and AKSA have almost the same risk level. However, the stock with the highest expected return is DOAS. As a result, when we look at it from a risk-return point of view, DOAS seems to be the asset that we will provide the most return on.
+
+
+```{r}
+
+lastPortfolio_summary <- newReturndf %>% 
+  rownames_to_column(var = "DATE") %>% 
+  `row.names<-`(NULL) %>% 
+  pivot_longer(!DATE, names_to = "Ticker", values_to = "NewReturn") %>% 
+  arrange(Ticker) %>% 
+  summarise(
+    ExpectedReturn = mean(NewReturn),
+    Risk = sd(NewReturn),
+    Sharpe = (ExpectedReturn - riskfree) / Risk
+  ) %>% 
+  bind_rows(
+    data.frame(
+      ExpectedReturn = 0.001,
+      Risk = 0.02,
+      Sharpe = 0.031
+    )
+  ) %>% 
+  mutate("PortfolioType" = c("Last","Previous")) %>% 
+  pivot_longer(!PortfolioType, names_to = "Type", values_to = "Values")
+
+ggplot(lastPortfolio_summary, aes(x = Type, y = Values, fill = PortfolioType)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  geom_text(aes(label = round(Values, digits = 3)),
+            position = position_dodge(width = 0.9), vjust = -0.2) +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(hjust = 0.5),
+        axis.title = element_blank()) +
+  scale_fill_manual(values = c("light blue","pink")) +
+  labs(title = "Previous Portfolio vs Current Portfolio")
+
+```
+
+In the chart we see the comparison of the two portfolios. Both are similar in terms of expected return. Although the risks seem to be close to each other, the risk of the portfolio in the previous project is less at *0.009* level.
+
+***If we compare the two portfolios in terms of Sharpe ratio,***
+
+In the previous project, the portfolio's sharpe ratio resulted in a value of *0.031*. In the portfolio we created according to the *Three Factor Model* used by Fama & French (1993), the Sharpe ratio was negative with *-0.026* value. A negative Sharpe ratio means that the portfolio's return is actually negative.
+
+The high Sharpe performance ratio of the portfolio increases the probability of choosing that portfolio.
