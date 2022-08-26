@@ -1,0 +1,496 @@
+---
+title: "Equity Valuation Methods - Dividend Discount Model"
+description: |
+  I will evaluate using historical dividend data for TUPRS stock listed on Borsa Istanbul (BIST).
+author:
+  - name: Irem Dastan
+date: 2022-08-26
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Finance
+  - Dividend
+  - Stock Prices
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+library(readxl);library(tidyverse);library(openxlsx);
+library(knitr);library(data.table);library(quantmod)
+
+```
+
+In this study, I will use TUPRS stock.
+
+## 1- Estimation of equity per share (EPS) using dividend discount models.
+
+I am using dividends of TUPRS stock distributed from 2007 to 2019. I got this data from the "investing.com" website.
+
+```{r}
+data <- read_excel("ass_2.xlsx")
+```
+
+Here, I calculate dividend growth rate.
+
+```{r}
+data <- data %>% 
+  mutate(lag_div=shift(Dividend, 1, type= "lag"),
+         div_growth_rate= (Dividend-lag_div)/lag_div) %>% 
+  select(c(-"lag_div")) 
+
+arithmetic_g <- mean(data$div_growth_rate, na.rm = TRUE)
+# geometric_g1 <- geometric.mean(data$div_growth_rate, na.rm = TRUE)
+geometric_g <- 0.1723
+
+```
+
+We calculate the dividend growth rate (g) both geometrically and arithmetically. We use the dividend growth rate that we calculate geometrically because the arithmetic g value is 40%, which is not very realistic. The g value of the geometric mean is 17%. That's why we prefer g, which we calculate with the geometric mean.
+
+We then use the CAPM formula to find the required return. CAPM formula is as follows
+
+$E(R_{i}) = Rf + \beta (E(R_{m}) - R_{f})$
+
+Data obtained from yahoo between May 31, 2007 and March 28, 2019 is used for TUPRS stock.
+
+```{r}
+
+stock <- data.frame(getSymbols("TUPRS.IS",
+                               src="yahoo",
+                               auto.assign = FALSE,
+                               from = "2007-05-31",
+                               to = "2019-03-28"))
+
+market <- data.frame(getSymbols("XU100.IS",
+                                src="yahoo",
+                                auto.assign = FALSE,
+                                from = "2007-05-31",
+                                to = "2019-03-28"))
+
+data <- merge(stock, market, by = "row.names")
+
+# prices
+pr.stock = data$TUPRS.IS.Adjusted
+pr.market = data$XU100.IS.Adjusted
+
+# visualize price data to see relationship
+
+normalization <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+data %>% 
+  select(TUPRS.IS.Adjusted,XU100.IS.Adjusted) %>% 
+  na.omit() %>% 
+  mutate(t = seq(1,nrow(.),1),
+         TUPRS.IS.Adjusted = normalization(TUPRS.IS.Adjusted),
+         XU100.IS.Adjusted = normalization(XU100.IS.Adjusted)) %>% 
+  pivot_longer(!t, names_to = "vars", values_to = "vals") %>% 
+  ggplot(aes(x = t, y = vals, group = vars, color = vars)) +
+  geom_line() +
+  scale_color_manual(values = c("#813B3D","#65738E")) +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top",
+        plot.caption = element_text(face = "italic")) +
+  labs(
+    caption = "Data is normalized"
+  )
+# returns
+ret.stock <- diff(pr.stock) / pr.stock[-length(pr.stock)]
+ret.market <- diff(pr.market) / pr.market[-length(pr.market)]
+
+dt <- data.frame(
+  t = seq(1,length(ret.stock),1),
+  ret.stock = ret.stock,
+  ret.market = ret.market
+)
+
+# summary statistics and histogram
+dt %>% 
+  pivot_longer(!t, names_to = "vars", values_to = "vals") %>% 
+  ggplot(aes(x = vals, fill = vars)) +
+  geom_density(alpha = .5) +
+  scale_fill_manual(values = c("red","purple")) +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),
+        axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top")
+summary(ret.market)
+summary(ret.stock)
+
+
+# correlation
+res.cor <- cor.test(ret.stock, ret.market)
+# below line is to obtain correlation estimate in cor.test result
+v.cor <- as.numeric(res.cor$estimate)
+
+# variances
+var.stock <- var(ret.stock, na.rm = TRUE)
+var.market <- var(ret.market, na.rm = TRUE)
+
+# risk free rate for Turkey 
+rf <- 0.17
+
+exc.market <- ret.market - rf/250 #Rm-Rf (excess market)
+exc.stock <- ret.stock - rf/250 #Ri-Rf (excess stock)
+
+reg <- lm(exc.stock ~ exc.market)
+summary(reg)
+
+reg$coefficients
+
+# E[Rm] --> historical average of Rm, annualized
+Erm <- mean(ret.market, na.rm = TRUE) * 250
+
+# E[Ri] <- Rf + Beta * (E[Rm] - Rf)
+
+beta <- 0.7223822712
+
+ri <- rf + beta * (Erm - rf)
+
+```
+
+We take the risk free rate as 17% for Turkey. To find the excess market, we subtract the risk free rate from the market return and divide by 250 to find this value on a daily basis. We do the same for excess stock. 
+
+Then we construct a single linear regression model. Our dependent variable in the model is excess stock, and the independent variable is excess market. As a result, the value of the beta coefficient is 0.7223. We calculate the Expected $R_{m}$ by averaging the market return and multiply it by 250 because we want it on an annual basis. 
+
+If we apply the results to the CAPM formula;
+
+$E(R_{i}) = Rf + \beta (E(R_{m}) - R_{f})$
+
+$R_{f}= 0.17$ 
+
+$\beta= 0.7223$ and
+
+$E(R_{m})= 0.0825$
+
+Here the required return value is 0.1067.
+
+We value the price of TUPRS stock with the Gordon Growth model based on the fact that it equals the sum of all future dividend payments. The model formula is as follows
+
+$V_{0}=\frac{D_{0}*(1+g)}{(r_{i}-g)}$
+
+where
+
+$D_{0} $ is price of the last dividend distributed.
+
+$g$ g is the dividend growth rate.
+
+$r_{i}$ is required return. 
+
+We calculated g and ri above. If we substitute it in the formula;
+
+```{r}
+D_0 <- 15.15
+
+g <- 0.1723
+
+ri <- 0.1067
+
+
+V_0 <- (D_0 * ( 1+ g)) / (ri - g)
+```
+
+
+We find the value of V0 -270.737
+
+The result is negative because the dividend growth rate, that is, g, is greater than r.
+
+But to get an infinite stream of dividends to converge to a finite stock value at t = 0, we must assume that the required return on common stock is greater than the growth rate in dividends. So r > g must be.
+
+**Let's see how the price will change if we take the dividend growth rate (g) the same and assume** $r_{i}$ **is 20%. That is, with the condition r > g**
+
+```{r}
+D_0 <- 15.15
+
+g <- 0.1723
+
+ri <- 0.20
+
+
+V_0 <- (D_0 * ( 1+ g)) / (ri - g)
+```
+
+When we assume $r_{i}$ as 20%, that is, when r > g, as in the assumption of the model, the price becomes 641.1677.
+
+**Let's see how the price will change if we take the dividend growth rate (g) the same and assume** $r_{i}$ **is 25%.**
+
+```{r}
+D_0 <- 15.15
+
+g <- 0.1723
+
+ri <- 0.25
+
+
+V_0 <- (D_0 * ( 1+ g)) / (ri - g)
+```
+
+When we assume $r_{i}$ as 25%, the price becomes 228.5759. Assuming $R_{i}$ as 25%, we find the result very close to the current value of TUPRS, that is, 259.50 (as of May 30, 2022).
+
+So far, we have used the dividend data of TUPRS stock between 2007 and 2019. Now, let's do the same calculations using the data between 2016 and 2019.
+
+
+```{r}
+#for 2016 and 2019
+
+# retrieve data from yahoo
+stock <- data.frame(getSymbols("TUPRS.IS",
+                               src="yahoo",
+                               auto.assign = FALSE,
+                               from = "2016-01-01",
+                               to = "2019-01-01"))
+
+market <- data.frame(getSymbols("XU100.IS",
+                                src="yahoo",
+                                auto.assign = FALSE,
+                                from = "2016-01-01",
+                                to = "2019-01-01"))
+
+data <- merge(stock, market, by = "row.names")
+
+# prices
+pr.stock = data$TUPRS.IS.Adjusted
+pr.market = data$XU100.IS.Adjusted
+
+
+# visualize price data to see relationship
+
+normalization1 <- function(x){
+  (x - min(x)) / (max(x) - min(x))
+}
+
+data %>% 
+  select(TUPRS.IS.Adjusted,XU100.IS.Adjusted) %>% 
+  na.omit() %>% 
+  mutate(t = seq(1,nrow(.),1),
+         TUPRS.IS.Adjusted = normalization(TUPRS.IS.Adjusted),
+         XU100.IS.Adjusted = normalization(XU100.IS.Adjusted)) %>% 
+  pivot_longer(!t, names_to = "vars", values_to = "vals") %>% 
+  ggplot(aes(x = t, y = vals, group = vars, color = vars)) +
+  geom_line() +
+  scale_color_manual(values = c("lightblue","#9B5134")) +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top",
+        plot.caption = element_text(face = "italic")) +
+  labs(
+    caption = "Data is normalized"
+  )
+
+
+# summary statistics and histogram
+
+dt %>% 
+  pivot_longer(!t, names_to = "vars", values_to = "vals") %>% 
+  ggplot(aes(x = vals, fill = vars)) +
+  geom_density(alpha = .5) +
+  scale_fill_manual(values = c("yellow","blue")) +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(),
+        axis.title = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "top")
+summary(ret.market)
+summary(ret.stock)
+
+
+# correlation
+res.cor <- cor.test(ret.stock, ret.market)
+# below line is to obtain correlation estimate in cor.test result
+v.cor <- as.numeric(res.cor$estimate)
+
+# variances
+var.stock <- var(ret.stock, na.rm = TRUE)
+var.market <- var(ret.market, na.rm = TRUE)
+
+# risk free rate (short term treasury bond rate, from central bank website)
+rf <- 0.17
+
+exc.market <- ret.market - rf/250 #Rm-Rf (excess market)
+exc.stock <- ret.stock - rf/250 #Ri-Rf (excess return)
+
+reg <- lm(exc.stock ~ exc.market)
+summary(reg)
+
+reg$coefficients
+
+# E[Rm] --> historical average of Rm, annualized
+Erm <- mean(ret.market, na.rm = TRUE) * 250
+
+# E[Ri] <- Rf + Beta * (E[Rm] - Rf)
+
+beta <- 0.6369378051
+
+ri <- rf + beta * (Erm - rf)
+
+```
+
+$\beta$ coefficient value is 0.6369. Expected $r_{m}$ will be 0.1156. Risk free rate for Turkey is 17%, we keep it constant.
+
+We are re-implementing the gordon growth model.
+
+we calculate the dividend growth rate with the geometric mean.
+
+```{r}
+data <- read_excel("ass_2.xlsx", sheet = "Sheet2")
+
+data <- data %>% 
+  mutate(lag_div=shift(Dividend, 1, type= "lag"),
+         div_growth_rate= (Dividend-lag_div)/lag_div) %>% 
+  select(c(-"lag_div")) 
+
+arithmetic_g <- mean(data$div_growth_rate, na.rm = TRUE)
+# geometric_g1 <- geometric.mean(data$div_growth_rate, na.rm = TRUE)
+geometric_g <- 0.2355
+```
+
+Dividend growth rate (g) here is 0.2355.
+
+If we apply the Gordon growth model ($V_{0}=\frac{D_{0}*(1+g)}{(r_{i}-g)}$).
+
+```{r}
+D_0 <- 15.15
+
+g <- 0.2355
+
+ri <- 0.1354
+
+
+V_0 <- (D_0 * ( 1+ g)) / (ri - g)
+```
+Here the result is again a negative value because the dividend growth rate is greater than the reqired return. We will assume the opposite case, namely r > g.
+
+This time let's assume $r_{i}$ is 25%. Because the value of g is 23% and the $r_{i}$ value we choose must be greater than g.
+
+*For 25%*
+```{r}
+D_0 <- 15.15
+
+g <- 0.2355
+
+ri <- 0.25
+
+
+V_0 <- (D_0 * ( 1+ g)) / (ri - g)
+```
+
+The resulting price is 1290,884.
+
+**TWO-STAGE DIVIDEND DISCOUNT MODEL**
+
+We will now apply the two-stage dividend discount model.
+
+The formula in this model is as follows.
+
+$V_{0}=\sum_{t=1}^{n} \frac{D_{0}\left(1+g_{S}\right)^{t}}{(1+r)^{t}}+\frac{D_{0} \times\left(1+g_{S}\right)^{n} \times\left(1+g_{L}\right)}{(1+r)^{n} \times\left(r-g_{L}\right)}$
+
+We use dividend data from 2007 to 2019.
+
+The last dividend price paid is 15.15 and divident growth rate is 0.1723 ($g_{s}$, that is, long term).
+
+**Step 1: Calculate the first four dividends:**
+
+Do*(1+gs)
+D1*(1+gs)
+D2*(1+gs)
+D3*(1+gs)
+D4*(1+gs)
+
+```{r}
+
+D_0 <- 15.15
+g <- 0.1723
+ri <- 0.1067
+
+D1 <- D_0*(1+g)
+D2 <- D1*(1+g)
+D3 <- D2*(1+g)
+D4 <- D3*(1+g)
+
+#Step 2: Calculate the Year 5 dividend:
+
+D5 <- D4*(1+ 0.08)
+
+#Step 3: Calculate the value of the constant growth dividends:
+
+V4= D5/(ri-0.08)
+```
+
+Where 
+
+D1 is 17.76
+
+D2 is 20.82
+
+D3 is 24.40
+
+D4 is 28.61
+
+D5 is 30.90
+
+Therefore V4 is 1157.291
+
+**If we do it for** $r_{i}$ **equals 20%**
+
+```{r}
+D_0 <- 15.15
+g <- 0.1723
+ri <- 0.20
+
+D1 <- D_0*(1+g)
+D2 <- D1*(1+g)
+D3 <- D2*(1+g)
+D4 <- D3*(1+g)
+
+#Step 2: Calculate the Year 5 dividend:
+
+D5 <- D4*(1+ 0.08)
+
+#Step 3: Calculate the value of the constant growth dividends:
+
+V4= D5/(ri-0.08)
+
+V_0 <- (D1/(1+ri)) + (D2/(1+ri)^2) + (D3/(1+ri)^3) + (D4/(1+ri)^4) +
+       (D5/(1+ri)^5) + (V4/(1+ri)^5) 
+
+```
+V4 becomes 257.5195 when $r_{i}$ is 20%. V_0 is 173.093
+
+**If we do it for** $r_{i}$ **equals 25%**
+
+```{r}
+D_0 <- 15.15
+g <- 0.1723
+ri <- 0.25
+
+D1 <- D_0*(1+g)
+D2 <- D1*(1+g)
+D3 <- D2*(1+g)
+D4 <- D3*(1+g)
+
+#Step 2: Calculate the Year 5 dividend:
+
+D5 <- D4*(1+ 0.08)
+
+#Step 3: Calculate the value of the constant growth dividends:
+
+V4= D5/(ri-0.08)
+
+V_0 <- (D1/(1+ri)) + (D2/(1+ri)^2) + (D3/(1+ri)^3) + (D4/(1+ri)^4) +
+       (D5/(1+ri)^5) + (V4/(1+ri)^5)
+```
+
+V4 becomes 181.7785 when $r_{i}$ is 25%. V_0 is 121.4414
+
+
+
