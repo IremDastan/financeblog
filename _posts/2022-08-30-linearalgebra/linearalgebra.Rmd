@@ -4,7 +4,7 @@ description: |
   In this series, I will share both my theoretical and applied knowledge about econometrics. In this post, I will make important theoretical reminders about linear algebra.
 author:
   - name: Irem Dastan
-date: 2022-05-16
+date: 2022-08-30
 output:
   distill::distill_article:
     self_contained: false
