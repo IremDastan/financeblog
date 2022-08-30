@@ -1,0 +1,36 @@
+---
+title: "Introduction to Econometrics: Linear Algebra"
+description: |
+  In this series, I will share both my theoretical and applied knowledge about econometrics. In this post, I will make important theoretical reminders about linear algebra.
+author:
+  - name: Irem Dastan
+date: 2022-05-16
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Econometrics
+  - Linear Algebra
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+I think theoretical knowledge about econometrics is very important. For example, we can do regression analysis with a simple code by building a model, but what is this analysis? what does it do? What is betafdfdf in the model? I think the questions are much more important. If we can understand this part well, we will get more accurate results when coding and interpreting analysis.
+
+In addition to finance, in this series that I have just started, I will both prove and show practically about econometrics.
+
+I hope that will be useful!
+
+*And I hope you like theoretical econometrics!*
+
+```{r}
+knitr::include_graphics("1.jpg")
+knitr::include_graphics("2.jpg")
+knitr::include_graphics("3.jpg")
+knitr::include_graphics("4.jpg")
+```
+
+I'll continue with linear algebra in the next post. I'll do it practically later.

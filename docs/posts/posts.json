@@ -63,6 +63,26 @@
     "input_file": {}
   },
   {
+    "path": "posts/2022-08-30-linearalgebra/",
+    "title": "Introduction to Econometrics: Linear Algebra",
+    "description": "In this series, I will share both my theoretical and applied knowledge about econometrics. In this post, I will make important theoretical reminders about linear algebra.",
+    "author": [
+      {
+        "name": "Irem Dastan",
+        "url": {}
+      }
+    ],
+    "date": "2022-05-16",
+    "categories": [
+      "Econometrics",
+      "Linear Algebra"
+    ],
+    "contents": "\r\nI think theoretical knowledge about econometrics is very important.\r\nFor example, we can do regression analysis with a simple code by\r\nbuilding a model, but what is this analysis? what does it do? What is\r\nbetafdfdf in the model? I think the questions are much more important.\r\nIf we can understand this part well, we will get more accurate results\r\nwhen coding and interpreting analysis.\r\nIn addition to finance, in this series that I have just started, I\r\nwill both prove and show practically about econometrics.\r\nI hope that will be useful!\r\nAnd I hope you like theoretical econometrics!\r\n\r\n\r\n\r\nI’ll continue with linear algebra in the next post. I’ll do it\r\npractically later.\r\n\r\n\r\n\r\n",
+    "preview": "posts/2022-08-30-linearalgebra/1.jpg",
+    "last_modified": "2022-08-30T17:31:51+03:00",
+    "input_file": {}
+  },
+  {
     "path": "posts/2022-05-08-hft-en/",
     "title": "Investigating High-Frequency Trading (HFT) Around the Extreme Price Movements in Borsa Istanbul",
     "description": "In this study, I analyzed the existence of high-frequency trading (HFT) in Borsa Istanbul. My focus is it's the behavior and market share of high-frequency trading during extreme price movements (EPM).",
