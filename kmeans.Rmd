@@ -1,0 +1,183 @@
+---
+title: "Untitled"
+author: "irem"
+date: '2022-08-31'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(caret)
+library(mice)
+library(readxl)
+```
+
+
+```{r}
+# importing data
+
+wholesale <- read_excel("C:/Users/irem/Desktop/wholesale.xlsx")
+```
+
+First, let's get to know the variables:
+
+*FRESH:* **Annual expenditure on fresh produce**
+*MILK:* **Annual milk expenditure**
+*GROCERY:* **Grocery products annual expenditure**
+*FROZEN:* **Frozen products annual expenditure**
+*DETERGENTS_PAPER:* **Detergent and paper annual expenditure**
+*DELICATESSEN:* **Delicatessen annual expenditure**
+*CHANNEL:* **(Hotel/Restoran/Cafe) or Retail channel (Nominal)**
+*REGION:* **Customer area Lisnon, Oporto or other (Nominal)**
+
+
+I scale units to get rid of outliers.
+
+```{r}
+scaleModel <- preProcess(wholesale, method = c("center","scale"))
+modelData <- predict(scaleModel, wholesale)
+```
+
+I'm checking to see if there are any missing observations.
+
+```{r}
+md.pattern(modelData) #missing value does not exist.
+```
+
+
+```{r}
+#Creating model
+clusterModel <- kmeans(modelData, centers = 4, 
+                iter.max = 15, nstart = 15)
+clusterModel
+
+fittedCluster <- fitted(clusterModel)
+
+clusterModel$cluster
+```
+
+I'm doing a reverse scale here.
+
+```{r}
+
+reversedData <- modelData %>% select(one_of(scaleModel$mean %>% names)) %>%
+                  map2_df(scaleModel$std, function(sd, var){var*sd})  %>%
+                  map2_df(scaleModel$mean, function(mu, var){var+mu})
+
+scaleModel$mean 
+reversedData$cluster <- clusterModel$cluster
+
+
+reversedData %>% group_by(cluster) %>% summarise_all(mean)
+```
+
+
+
+```{r}
+boxplot(Fresh ~ cluster, data = reversedData,
+        col="#80d7cc",border="pink")
+```
+
+The range in cluster 1 and the range in cluster 4 are almost the same. The median of the 3rd cluster and the 4th cluster is similar.
+
+```{r}
+fviz_cluster(clusterModel, data = modelData,
+             ggtheme = theme_minimal()
+             )
+```
+
+
+## Optimum "k" 
+
+### k Calculation with Elbow Method
+
+```{r}
+
+clusterModel$withinss #cost function
+clusterModel$tot.withinss 
+
+wss <- sapply(2:10, FUN = function(x){kmeans(modelData, centers = x, 
+                        nstart = 10, iter.max = 15)$tot.withinss})
+
+wss
+
+plot(2:10, wss, type = "b")
+
+fviz_nbclust(modelData, kmeans, method = "wss")
+```
+
+### k C alculation with Silhouette Method
+
+```{r}
+
+silhouette(clusterModel$cluster, dist(modelData))
+
+# The model with silhouette score max will be the best k model.
+
+silScore <- function(x){
+             model <- kmeans(modelData, centers = x , nstart = 10, iter.max = 15)
+             sil <- silhouette(model$cluster, dist(modelData))[,3]
+             score <- mean(sil)
+             return(score)
+             }
+
+scores <- sapply(2:10, FUN = silScore)
+
+scores
+
+plot(2:10, scores, type = "b") 
+
+```
+
+Max score is best so "2" 
+
+Let's sort.
+
+```{r}
+fviz_nbclust(modelData, kmeans, method = "silhouette")
+```
+
+According to the code above, the optimal 3 point came out because we gave nstart a random number.
+
+
+```{r}
+
+clusterModelK2 <- kmeans(modelData, centers = 2, nstart = 50, iter.max = 20)
+clusterModelK3 <- kmeans(modelData, centers = 3, nstart = 50, iter.max = 20)
+
+fviz_cluster(clusterModelK2, modelData)
+```
+
+In the code above there are outliers in the blue region at the extremes, the density is at the top.
+
+```{r}
+fviz_cluster(clusterModelK3, modelData)
+```
+
+In the above code, it created a cluster of outliers on the left.
+
+```{r}
+
+reversedData$clusterK2 <- clusterModelK2$cluster
+reversedData$clusterK3 <- clusterModelK3$cluster
+
+reversedData %>% group_by(clusterK2) %>% summarise_all(mean) 
+```
+
+More milk intake in cluster 2.
+
+```{r}
+reversedData %>% group_by(clusterK3) %>% summarise_all(mean)
+```
+
+When we look at the region, we see that there is no distinction according to this. Meat intake is higher in cluster 3.
+
+*1 and 3 restaurants 2nd cluster hotel.*
+
+As a result, we can segment customers according to this cluster and organize campaigns accordingly. The optimum number of clusters is 2 and 3. Whichever is more meaningful for the company, that is, profitable, we can use that cluster as customer segmentation.
