@@ -1,0 +1,389 @@
+---
+title: "Event Study: How do CBRT policy rate announcements affect stocks?"
+description: |
+  We are gonna event study methodology this study.
+author:
+  - name: Irem Dastan
+date: 2022-11-03
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Event study
+  - Policy rate
+  - Macroeconomic announcement
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+In this study, the effect of the interest rate decisions announced by the Central Bank of the Republic of Turkey (CBRT) on stocks on the stocks in BIST30 was investigated. To put it in more detail, the reaction of the Central Bank of the Republic of Turkey to the asset prices before and after the interest (increase, decrease and constant) announcements has been examined. The data set between the years 2015-2022 was
+used. Daily data set for stocks (BIST30) and monthly data set for CBRT interest rate announcements are used. In addition, case study was used as a method. 
+
+```{r}
+library(readxl);library(tidyverse);library(openxlsx);
+library(data.table);library(zoo);library(kableExtra)
+
+```
+
+Data are from Bloomberg
+
+```{r}
+# Daily stock data import
+Daily_Stock <- read_excel("data.xlsx",
+sheet = "daily_stock") %>%
+mutate(ASELS = na.locf(ASELS)) %>%
+pivot_longer(!DATE, names_to = "Ticker",values_to = "LastPriceTicker")
+# Daily index data import
+Daily_Index <- read_excel("data.xlsx",
+sheet = "daily_index")
+
+```
+
+## METHODOLOGY
+
+The case study methodology of Brown and Warner (1985) was used in this study. The research subject of the study is how the CBRT interest rate announcements will affect the stocks listed in the BIST30 index. The data set includes the closing prices of BIST 30 assets between January 2, 2015 and May 30, 2022. Within this date range, there are 66 interest announcements by the CBRT.
+
+In the study, the estimation window is designed as [-252, -10] and the event window as [-10, 10]. Within the scope of the study, abnormal returns (AR) and cumulative abnormal returns (CAR) were calculated and t-statistics was applied.
+
+### Calculating the Return
+
+```{r}
+# Calculating the Stock Return
+
+Daily_Stock <- Daily_Stock %>%
+  arrange(Ticker) %>%
+  group_by(Ticker) %>%
+  mutate(lagLastPriceTicker=shift(LastPriceTicker, 1, type= "lag"),
+         perReturnTicker= (LastPriceTicker-lagLastPriceTicker)/lagLastPriceTicker,
+         logReturnTicker= log(LastPriceTicker/lagLastPriceTicker)) %>%
+  ungroup()
+
+
+ggplot(Daily_Stock, aes(x=DATE, y=perReturnTicker, group= Ticker)) +
+  geom_line(color="#80d7cc") +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_hline(yintercept = 0) +
+  ggtitle("Stocks Return")
+```
+
+
+```{r}
+# Calculating the BIST100-Index Return
+
+Daily_Index <- Daily_Index %>%
+  mutate(lagXU100=shift(XU100, 1, type= "lag"),
+         perReturnXU100= (XU100-lagXU100)/lagXU100,
+         logReturnXU100= log(XU100/lagXU100))
+
+
+ggplot(Daily_Index, aes(x=DATE, y=perReturnXU100)) +
+  geom_line(color="orange") +
+  theme_minimal() +
+  theme(axis.title = element_blank(),
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_hline(yintercept = 0) +
+  ggtitle("XU100 Index Return")
+```
+
+### Calculating the Abnormal Return
+
+Here abnormal return is calculated. The abnormal return is the difference between the realized return and the expected return on a security. The abnormal return formula is as follows.
+
+$Ai,t = Ri,t − Rm,t$
+
+where;
+
+Rm,t is the BIST100 index for day $t$, $Ri,t$ is also the percentage return for security $i$ at day $t$ and finally $Ai,t$ is defined as the excess return for security $i$ at day $t$.
+
+```{r}
+# Calculating the Abnormal Return
+
+df_daily <- Daily_Stock %>%
+  left_join(Daily_Index, by = "DATE") %>%
+  mutate(AR = perReturnTicker - perReturnXU100,
+         DATE = as.Date(DATE)) %>%
+  arrange(Ticker,DATE)
+
+```
+
+```{r}
+# Importing the event days
+
+df_EventDay <- read_excel("data.xlsx", sheet = "announcement") %>%
+  arrange(DATE) %>%
+  mutate(
+    "DIFF" = lag(lead(RATE) - RATE),
+    "DECISION" = case_when(
+      DIFF == 0 ~ "CONSTANT",
+      DIFF > 0 ~ "INCREASED",
+      DIFF < 0 ~ "DECREASED"
+      )
+    ) %>%
+  na.omit()
+
+ticker <- df_daily %>% select(Ticker) %>% distinct() %>% pull(Ticker)
+eventday <- df_EventDay %>% pull(DATE) %>% as.Date()
+
+```
+
+### Estimation and Event Window
+
+Here we calculate the estimation period and event period for each stock. Our Estimation window is (-252, -10) and our event window is (-10, 10).
+
+```{r}
+knitr::include_graphics("event_est_window.png")
+```
+
+```{r}
+# -10 & 10
+
+before <- 10
+after <- 10
+
+master <- data.frame()
+
+for(i in 1:length(ticker)) {
+  
+  for (j in 1:length(eventday)) {
+    finalFilter <- df_daily %>%
+      arrange(Ticker) %>%
+      group_by(Ticker) %>%
+      mutate(ID = row_number()) %>%
+      filter(Ticker == ticker[i])
+    id <- finalFilter %>%
+      filter(DATE == as.Date(eventday[j])) %>%
+      pull(ID)
+    
+    final <- finalFilter %>%
+      filter(ID >= (id - before) & ID <= (id + after)) %>%
+      mutate(DATE = as.Date(DATE)) %>%
+      dplyr::select(DATE, Ticker, AR) %>%
+      mutate(EventDay = eventday[j])
+    master <- master %>% bind_rows(final)
+    }
+  }
+
+master2 <- master %>%
+  group_by(Ticker,EventDay) %>%
+  mutate(
+    day = seq(before*-1,after,1)
+    ) %>%
+  ungroup() %>%
+  left_join(df_EventDay[,c(1,4)], by = "DATE") %>%
+  group_by(EventDay) %>%
+  mutate(RN = cur_group_id()) %>%
+  ungroup()
+
+master2_ek <- data.frame()
+
+for(m in 1:length(unique(master2$RN))){
+  myTbl <- master2 %>%
+    filter(RN == m)
+  theDecision <- myTbl %>% na.omit() %>% pull(DECISION) %>% unique()
+  myTbl <- myTbl %>%
+    mutate(DECISION = ifelse(row_number()==1,theDecision,DECISION),
+           DECISION = na.locf(DECISION))
+  
+  master2_ek <- master2_ek %>% bind_rows(myTbl)
+  }
+master2 <- master2_ek %>%
+  select(-RN)
+master2_cons <- master2 %>%
+  filter(DECISION == "CONSTANT") %>%
+  select(-DATE,-DECISION) %>%
+  group_by(day) %>%
+  summarise(
+    AAR = mean(AR)
+    ) %>%
+  ungroup() %>%
+  mutate(
+    CAR = cumsum(AAR)
+    ) %>%
+  mutate(
+    DECISION = "CONSTANT"
+    )
+master2_inc <- master2 %>%
+  filter(DECISION == "INCREASED") %>%
+  select(-DATE,-DECISION) %>%
+  group_by(day) %>%
+  summarise(
+    AAR = mean(AR)
+) %>%
+  ungroup() %>%
+  mutate(
+    CAR = cumsum(AAR)
+    ) %>%
+  mutate(
+    DECISION = "INCREASED"
+    )
+
+
+master2_dec <- master2 %>%
+  filter(DECISION == "DECREASED") %>%
+  select(-DATE,-DECISION) %>%
+  group_by(day) %>%
+  summarise(
+    AAR = mean(AR)
+    ) %>%
+  ungroup() %>%
+  mutate(
+    CAR = cumsum(AAR)
+    ) %>%
+  mutate(
+    DECISION = "DECREASED"
+    )
+
+
+master_all <- rbind(master2_cons,master2_inc,master2_dec)
+ggplot(master_all, aes(x = day, y = CAR, color = DECISION)) +
+  geom_line(size = 3) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 20),
+        legend.position = "none",
+        axis.text = element_text(size = 20),
+        axis.title = element_text(size = 20),
+        plot.title = element_text(size = 30, face = "bold", hjust = 0.5)) +
+  facet_wrap(~DECISION) +
+  labs(title = "CAR Graph of Interest Rates by Decisions")
+```
+
+When the CBRT keeps the interest rates constant, BIST30 prices start to fall until 10 days before the announcement, up to 4 days before, and then it has no effect.
+
+When the CBRT lowers the interest rates, BIST30 prices start to move upwards positively from the 3rd day before the announcement day. After the announcement day, we see that the prices are moving in the negative direction. Starting from the 5th day, BIST30 prices start to increase again.
+
+Finally, we see that when the CBRT raises interest rates, it decreases until the 6th day, 10 days before the announcement day. BIST30 makes a positive jump from 6 days before the announcement day to the 4th day and then decreases again. After the announcement day, we can say that the prices moved in a positive direction, that is, BIST30 increased.
+
+In addition to this analysis, we also look at -252 days before and 10 days after the announcement days.
+
+```{r}
+# -252 & 10
+before2 <- 252
+after2 <- 10
+
+master3 <- data.frame()
+for(i in 1:length(ticker)) {
+  for (j in 1:length(eventday)) {
+    finalFilter2 <- df_daily %>%
+      arrange(Ticker) %>%
+      group_by(Ticker) %>%
+      mutate(ID = row_number()) %>%
+      filter(Ticker == ticker[i])
+    
+    id2 <- finalFilter2 %>%
+      filter(DATE == as.Date(eventday[j])) %>%
+      pull(ID)
+    
+    final2 <- finalFilter2 %>%
+      filter(ID >= (id2 - before2) & ID <= (id2 + after2)) %>%
+      mutate(DATE = as.Date(DATE)) %>%
+      dplyr::select(DATE, Ticker, AR) %>%
+      mutate(EventDay = eventday[j])
+    
+    master3 <- master3 %>% bind_rows(final2)
+  }
+  
+}
+
+master4 <- master3 %>%
+  group_by(Ticker,EventDay) %>%
+  mutate(
+    day = seq(before2*-1,after2,1)
+    ) %>%
+  ungroup() %>%
+  left_join(df_EventDay[,c(1,4)], by = "DATE") %>%
+  group_by(EventDay) %>%
+  mutate(RN = cur_group_id()) %>%
+  ungroup()
+
+
+master4_ek <- data.frame()
+for(m in 1:length(unique(master4$RN))){
+  myTbl2 <- master4 %>%
+    filter(RN == m)
+  theDecision2 <- myTbl2 %>% na.omit() %>% pull(DECISION) %>% unique()
+  myTbl2 <- myTbl2 %>%mutate(DECISION = ifelse(row_number()==1,theDecision,DECISION),
+                             DECISION = na.locf(DECISION))
+  master4_ek <- master4_ek %>% bind_rows(myTbl2)
+}
+
+master4 <- master4_ek %>%
+  select(-RN)
+master4_cons <- master4 %>%
+  filter(DECISION == "CONSTANT") %>%
+  select(-DATE,-DECISION) %>%
+  group_by(day) %>%
+  summarise(
+    AAR = mean(AR)
+    ) %>%
+  ungroup() %>%
+  mutate(
+    CAR = cumsum(AAR)
+) %>%
+  mutate(
+DECISION = "CONSTANT"
+)
+
+master4_inc <- master4 %>%
+  filter(DECISION == "INCREASED") %>%
+  select(-DATE,-DECISION) %>%
+  group_by(day) %>%
+  summarise(
+AAR = mean(AR)
+) %>%
+  ungroup() %>%
+mutate(
+  CAR = cumsum(AAR)
+) %>%
+  mutate(
+DECISION = "INCREASED"
+)
+
+
+master4_dec <- master4 %>%
+  filter(DECISION == "DECREASED") %>%
+  select(-DATE,-DECISION) %>%
+  group_by(day) %>%
+  summarise(
+    AAR = mean(AR)
+) %>%
+  ungroup() %>%
+  mutate(
+CAR = cumsum(AAR)
+) %>%
+  mutate(
+DECISION = "DECREASED"
+)
+
+master_all2 <- rbind(master4_cons,master4_inc,master4_dec)
+
+
+ggplot(master_all2, aes(x = day, y = CAR, color = DECISION)) +
+  geom_line(size = 1) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  theme_minimal() +
+  theme(strip.text = element_text(size = 8),
+        legend.position = "none",
+        axis.text = element_text(size = 8),
+        axis.title = element_text(size = 8),
+        plot.title = element_text(size = 15, face = "bold", hjust = 0.5)) +
+  facet_wrap(~DECISION) +
+  labs(title = "CAR Graph of Interest Rates by Decisions")
+
+
+```
+
+
+The graph shows the price movements of stocks -252 days before and 10 days after the announcement days.
+
+We can say that BIST30 prices decrease when interest rates are kept constant and decreased, and prices increase in the same way when interest rates are increased.
+
+You can do t-stat in the next step. 
