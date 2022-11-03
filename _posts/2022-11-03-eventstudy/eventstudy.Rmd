@@ -242,15 +242,15 @@ master2_dec <- master2 %>%
 
 master_all <- rbind(master2_cons,master2_inc,master2_dec)
 ggplot(master_all, aes(x = day, y = CAR, color = DECISION)) +
-  geom_line(size = 3) +
+  geom_line(size = 1) +
   geom_vline(xintercept = 0) +
   geom_hline(yintercept = 0) +
   theme_minimal() +
-  theme(strip.text = element_text(size = 20),
+  theme(strip.text = element_text(size = 8),
         legend.position = "none",
-        axis.text = element_text(size = 20),
-        axis.title = element_text(size = 20),
-        plot.title = element_text(size = 30, face = "bold", hjust = 0.5)) +
+        axis.text = element_text(size = 8),
+        axis.title = element_text(size = 8),
+        plot.title = element_text(size = 15, face = "bold", hjust = 0.5)) +
   facet_wrap(~DECISION) +
   labs(title = "CAR Graph of Interest Rates by Decisions")
 ```
