@@ -1,0 +1,334 @@
+---
+title: "Instrumental Variable (IV)"
+description: |
+  We will replicate the paper with economic models using Instrumental Variable (IV).
+author:
+  - name: Irem Dastan
+date: 2022-11-16
+output:
+  distill::distill_article:
+    self_contained: false
+categories:
+  - Instrumental Variable
+  - IV
+  - OLS
+  - Econometrics
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+```{r}
+library(ivreg);library(modelsummary);library(haven);library(stargazer)
+```
+
+# The Instrumental Variable (IV)
+
+The instrumental variables method (IV) is used to predict causal relationships when a treatment has not been successfully delivered to each unit in an experiment. A valid instrument causes changes in the explanatory variable but has no independent effect on the dependent variable, allowing it to reveal its causal effect on the dependent variable.
+
+Instrument variable methods allow for consistent estimation when explanatory variables (covariates) are associated with error terms in a regression model. This type of correlation can occur when:
+
+* Changes in the dependent variable change the value of at least one of the covariates, if there are omitted variables that affect both the dependent and independent variables, or the covariates are subject to non-random measurement error.
+
+Explanatory variables that suffer from one or more of these problems in a regression context are sometimes referred to internally. In this case, ordinary least squares produce biased and inconsistent estimates. However, if a instrument is available, consistent estimates can still be obtained. A means is a variable that does not itself belong to the explanatory equation, but is related to the endogenous explanatory variables depending on the value of the other covariates.
+
+There are two basic requirements for using IVs in linear models:
+
+*1-) The instrument should be correlated with the internal explanatory variables based on other covariates. If this correlation is strong, the instrument is said to have a strong first stage. A weak correlation can provide misleading inferences about parameter estimates and standard errors.*
+
+*2-) The instrument cannot be associated with the error term in the explanatory equation due to other covariates. In other words, the instrument cannot suffer from the same problem as the original prediction variable. If this condition is met, the vehicle is said to meet the exclusion restriction.*
+
+##### I've replicated the article below that uses an IV method.
+
+# Education and Catch-up in the Industrial Revolution
+
+***Sascha O. Becker, Erik Hornung, Ludger Woessmann, 2011***
+
+### Research Question
+
+In this paper, it is investigated whether the models that determine the role of education in catching technology have an impact on the industrial revolution.
+
+### Data Definition
+
+There are 334 observations and 56 variables in the paper. I will not write because there are too many variables, but I will introduce the variables I used in the parts I analyzed.
+
+### The Empirical Model
+
+The threat to the impact of education on industrialization stems from the fact that the industrialization process can cause changes in education demand. This leads to its endogenous bias.
+
+$IND_{1849}=\alpha_{1}+\beta_{1} E D U_{1849}+X_{1849}^{\prime} \gamma_{1}+\varepsilon_{1}$
+
+To address the concern that education may be inherent in industrialization itself, instrumental variable (IV) is used for levels of education during industrialization observed before industrialization. Thus, EDU in 1849 before the Industrial Revolution was instrumentalized in 1816 with education EDU in the following equation.
+
+$EDU_{1849}=\alpha_{2}+\beta_{2} E D U_{1816}+X_{1849}^{\prime} \gamma_{2}+\varepsilon_{2}$
+
+We estimate the models for both the first (1849) and the second phase of industrialization (1882), where the latter shows the impact of education for both phases. In the second phase (1849-1882) to determine the impact of education on the progress of industrialization;
+
+$I N D_{1882}=\alpha_{3}+\beta_{3} E D U_{1882}+\lambda_{3} I N D_{1849}+X_{1882}^{\prime} \gamma_{3}+Y_{1816}^{\prime} \mu_{3}+\varepsilon_{3}$
+
+```{r}
+# Importing the data
+
+Data_BHW_Replication <- read_dta("Data_BHW_Replication.dta")
+```
+
+The first part of Table 1 shows OLS and the second part shows IV. The dependent variable; measures industrialization in factories as a share of the total county population (in 1849). There are three sectors.
+
+1-) All factories except metal and textile.
+
+2-) Metal factories.
+
+3-) Textile factories.
+
+In addition, the population under the age of 15 and over the age of 60 and the size of the district area are also included in the model.
+
+### Table 1 OLS Model
+
+```{r}
+
+ols_model_all <- lm(fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+ols_model_metal <- lm(fac1849_metal_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+ols_model_texti <- lm(fac1849_texti_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+ols_model_other <- lm(fac1849_other_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+```
+
+### Table 1 IV Model
+
+```{r}
+
+# First stage
+first_stage <- lm(edu1849_adult_yos ~ edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+#Second stage
+second_stage_all <- ivreg(fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+
+second_stage_other <- ivreg(fac1849_other_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+
+second_stage_metal <- ivreg(fac1849_metal_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+
+second_stage_texti <- ivreg(fac1849_texti_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm,
+               data = Data_BHW_Replication)
+
+
+```
+
+
+### Create the Table 1
+
+```{r}
+# OLS
+
+stargazer(
+  ols_model_all,
+  ols_model_metal,
+  ols_model_texti,
+  ols_model_other,
+  type = "text",
+  title = "EDUCATION AND INDUSTRIALIZATION IN THE FIRST PHASE OF THE INDUSTRIAL REVOLUTION",
+  digits = 3,
+  dep.var.caption = "Share of factory workers in total population 1849",
+  dep.var.labels.include = FALSE,
+  column.sep.width = "-10pt",
+  no.space = TRUE,
+  column.labels = c(
+    "All factories",
+    "All except metal and textiles",
+    "Metal factories",
+    "Textile factories"
+  ),
+  covariate.labels = c("Years of schooling 1849",
+                       "Share of population < 15",
+                       "Share of population > 60",
+                       "County area (in 1000 km)",
+                       "Constant"),
+  model.numbers = FALSE
+)
+
+# IV
+
+stargazer(
+  first_stage,
+  second_stage_all,
+  second_stage_other,
+  second_stage_metal,
+  second_stage_texti,
+  type = "text",
+  title = "Table 1 (CONTINUED)",
+  digits = 3,
+  dep.var.caption = "Share of factory workers in total population 1849",
+  dep.var.labels.include = FALSE,
+  column.sep.width = "-20pt",
+  no.space = TRUE,
+  column.labels = c(
+    "Years of schooling 1849",
+    "All factories",
+    "All except metal and textiles",
+    "Metal factories",
+    "Textile factories"
+  ),
+  covariate.labels = c("Years of schooling 1849",
+                       "Share of population < 15",
+                       "Share of population > 60",
+                       "County area (in 1000 km)",
+                       "Constant"),
+  model.numbers = FALSE
+)
+
+```
+
+#### Table 1 Results;
+
+Towards the end of the first phase of the Industrial Revolution, there is a significantly positive statistical correlation with the school years of factory workers. The results also apply to industries other than metals and textiles. But for textile, there is not much statistical significance between education and industrialization. Years of schooling in the adult population (>60) in 1849 may be endogenous to industrialization in 1849, so the bias is unclear.
+
+Before the Industrial Revolution began, we see the schooling years in 1849, according to the school enrollment in 1816. The instrument has not been affected by the changes in demand for training brought about during industrialization, which came externally from the industry-leading England. Assuming that the 1816 school enrollment is unrelated to other measures related to subsequent industrialization, we can explain the causal effect of education on industrialization in Prussia.
+
+As seen in column 5 in the first stage, the 1816 school enrollment provides a powerful instrument for adult education in 1849. The second stage estimate for total factory employment in all industries is statistically significant (in column 6). While this effect is covered by industries other than metals and textiles, the estimate in the last two sectors (metal and textile) is not statistically significant.
+
+
+### TABLE 3
+```{r}
+
+table3_mod1 <- ivreg((fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc), data = Data_BHW_Replication)
+
+
+table3_mod2 <- ivreg((fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc), data = Data_BHW_Replication)
+
+
+table3_mod3 <- ivreg((fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + pop1816_cities_pc + steam1849_mining_pc), data = Data_BHW_Replication)
+
+
+table3_mod4 <- ivreg((fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + pop1816_cities_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc), data = Data_BHW_Replication)
+
+```
+
+
+### TABLE 3 IV
+```{r}
+
+table3_mod5 <- ivreg(edu1849_adult_yos ~ edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc, data = Data_BHW_Replication)
+
+
+table3_mod6 <- ivreg(fac1849_total_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc, data = Data_BHW_Replication)
+
+
+table3_mod7 <- ivreg(fac1849_other_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc, data = Data_BHW_Replication)
+
+
+
+table3_mod8 <- ivreg(fac1849_metal_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc, data = Data_BHW_Replication)
+
+
+table3_mod9 <- ivreg(fac1849_texti_pc ~ edu1849_adult_yos + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc | edu1816_pri_enrol + pop1849_young + pop1849_old + area1816_qkm + pop1816_cities_pc + indu1819_texti_pc + steam1849_mining_pc + vieh1816_schaf_landvieh_pc + occ1816_farm_laborer_t_pc + buil1816_publ_pc + chausseedummy + trans1816_freight_pc, data = Data_BHW_Replication)
+
+```
+
+### Create the Table 3
+
+```{r}
+# OLS
+
+stargazer(
+  table3_mod1,
+  table3_mod2,
+  table3_mod3,
+  table3_mod4,
+  type = "text",
+  title = "ACCOUNTING FOR PRE-INDUSTRIAL DEVELOPMENT",
+  digits = 3,
+  dep.var.caption = "Share of factory workers in total population 1849",
+  dep.var.labels.include = FALSE,
+  column.sep.width = "-10pt",
+  no.space = TRUE,
+  column.labels = c(
+    "All factories",
+    "All factories",
+    "All factories",
+    "All factories"
+  ),
+  covariate.labels = c("Years of schooling 1849",
+                       "Share of population < 15",
+                       "Share of population > 60",
+                       "County area (in 1000 km)",
+                       "Share of population living in cities 1816",
+                       "Looms per capita 1819",
+                       "Steam engines in mining per capita 1849",
+                       "Sheep per capita 1816",
+                       "Share of farm laborers in total population 1819",
+                       "Constant"),
+  model.numbers = FALSE
+)
+
+#IV
+
+stargazer(
+  table3_mod5,
+  table3_mod6,
+  table3_mod7,
+  table3_mod8,
+  table3_mod9,
+  type = "text",
+  title = "Table 3 (CONTINUED)",
+  digits = 3,
+  dep.var.caption = "Share of factory workers in total population 1849",
+  dep.var.labels.include = FALSE,
+  column.sep.width = "-30pt",
+  no.space = TRUE,
+  column.labels = c(
+    "Years of schooling 1849",
+    "All factories",
+    "All except metal and textiles",
+    "Metal factories",
+    "Textile factories"
+  ),
+  covariate.labels = c("Years of schooling 1849",
+                       "School enrollment rate 1816",
+                       "Share of population < 15",
+                       "Share of population > 60",
+                       "County area (in 1000 km)",
+                       "Share of population living in cities 1816",
+                       "Looms per capita 1819",
+                       "Steam engines in mining per capita 1849",
+                       "Sheep per capita 1816",
+                       "Share of farm laborers in total population 1819",
+                       "Public buildings per capita 1821",
+                       "Paved streets 1815 (dummy)",
+                       "Tonnage of ships per capita 1819",
+                       "Constant"),
+  model.numbers = FALSE
+)
+
+```
+
+
+### Table 3 Results
+
+Urbanization is indeed significantly associated with industrialization, but population density is not statistically significant and does not affect the education estimate. In 1816, as industrial technologies began to develop, the loom was added to the 2nd model. These looms are quite meaningful but do not affect the education. School enrollment in 1816 is not associated with differential mining. Perhaps It would have affected education had it been enrolled in school before industrialization began. Agricultural employment is negatively related to industrialization. But again, none of them affect the training estimate. The number of public buildings, transportation infrastructure and tonnage capacity of ships are not significantly positively correlated with industrialization and do not affect the training outcome.
+
+The estimated impact of education on industrialization actually rises to 0.182 (vs 0.132 in the baseline model) when all indicators of pre-industrial development are added to the model (my result is 0.215 instead of 0.182. Thus, in my analysis, the impact of education on industrialization is much greater).
+
+We can say that the development outside the metal and textile industries has a positive effect on education. However, this is not the case for the textile industry.
+
